@@ -2,6 +2,7 @@ from config.base_config import Config
 from model.clip_baseline import CLIPBaseline
 from model.clip_transformer import CLIPTransformer
 
+
 class ModelFactory:
     @staticmethod
     def get_model(config: Config):

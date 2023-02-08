@@ -1,11 +1,7 @@
 import os
-import ujson as json
-import zipfile
-import numpy as np
-import pickle
-import random
-import torch
+import json
 import shutil
+
 
 # Only works with huggingface param names
 def freeze_layers_clip(model, freeze_layer_num):
@@ -21,7 +17,7 @@ def freeze_layers_clip(model, freeze_layer_num):
                 or 'post_layernorm' in name or 'visual_projection' in name \
                 or 'logit_scale' in name:
             continue # need to train
-        
+
         elif 'text_model.encoder.layers' in name or 'vision_model.encoder.layers' in name:
             layer_num = int(name.split('.layers.')[1].split('.')[0])
             if layer_num >= freeze_layer_num:
@@ -29,7 +25,7 @@ def freeze_layers_clip(model, freeze_layer_num):
 
         print(name)
         param.requires_grad = False
-        
+
 
 def load_json(filename):
     with open(filename, "r") as f:

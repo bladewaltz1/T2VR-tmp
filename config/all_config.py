@@ -11,7 +11,7 @@ class AllConfig(Config):
     def parse_args(self):
         description = 'Text-to-Video Retrieval'
         parser = argparse.ArgumentParser(description=description)
-        
+
         # data parameters
         parser.add_argument('--dataset_name', type=str, default='MSRVTT', help="Dataset name")
         parser.add_argument('--videos_dir', type=str, default='data/MSRVTT/vids', help="Location of videos")
@@ -31,7 +31,6 @@ class AllConfig(Config):
         parser.add_argument('--metric', type=str, default='t2v', help="'t2v'/'v2t'")
 
         # model parameters
-        parser.add_argument('--huggingface', action='store_true', default=False)
         parser.add_argument('--arch', type=str, default='clip_transformer')
         parser.add_argument('--clip_arch', type=str, default='ViT-B/32', help="CLIP arch. only when not using huggingface")
         parser.add_argument('--embed_dim', type=int, default=512, help="Dimensionality of the model embedding")

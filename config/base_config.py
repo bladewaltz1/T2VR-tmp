@@ -4,7 +4,7 @@ from abc import abstractmethod, ABC
 class Config(ABC):
     def __init__(self):
         args = self.parse_args()
-        
+
         self.dataset_name = args.dataset_name
         self.videos_dir = args.videos_dir
         self.msrvtt_train_file = args.msrvtt_train_file
@@ -22,7 +22,6 @@ class Config(ABC):
         self.eval_window_size = args.eval_window_size
         self.metric = args.metric
 
-        self.huggingface = args.huggingface
         self.arch = args.arch
         self.clip_arch = args.clip_arch
         self.embed_dim = args.embed_dim
@@ -34,7 +33,7 @@ class Config(ABC):
         self.num_epochs = args.num_epochs
         self.weight_decay = args.weight_decay
         self.warmup_proportion = args.warmup_proportion
-    
+
         self.pooling_type = args.pooling_type
         self.k = args.k
         self.attention_temperature = args.attention_temperature
@@ -46,7 +45,7 @@ class Config(ABC):
         self.no_tensorboard = args.no_tensorboard
         self.tb_log_dir = args.tb_log_dir
 
-   
+
     @abstractmethod
     def parse_args(self):
         raise NotImplementedError

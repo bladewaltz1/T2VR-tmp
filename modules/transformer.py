@@ -1,8 +1,10 @@
 import math
-import torch
+
 import torch.nn as nn
 import torch.nn.functional as F
+
 from config.base_config import Config
+
 
 class MultiHeadedAttention(nn.Module):
     def __init__(self, config: Config):
@@ -11,13 +13,12 @@ class MultiHeadedAttention(nn.Module):
         self.num_heads = config.num_mha_heads
         assert self.embed_dim % self.num_heads == 0
         self.head_dim = self.embed_dim // self.num_heads
-        
+
         self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.v_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
 
-    
     def forward(self, text_embeds, video_embeds):
         """
         Input
@@ -71,7 +72,7 @@ class Transformer(nn.Module):
         self.cross_attn = MultiHeadedAttention(config)
 
         self.linear_proj = nn.Linear(self.embed_dim, self.embed_dim)
-            
+
         self.layer_norm1 = nn.LayerNorm(self.embed_dim)
         self.layer_norm2 = nn.LayerNorm(self.embed_dim)
         self.layer_norm3 = nn.LayerNorm(self.embed_dim)
@@ -79,7 +80,6 @@ class Transformer(nn.Module):
 
         self._init_parameters()
 
-    
     def _init_parameters(self):
         for name, param in self.named_parameters():
             if 'linear' in name or 'proj' in name:
@@ -87,7 +87,6 @@ class Transformer(nn.Module):
                     nn.init.eye_(param)
                 elif 'bias' in name:
                     param.data.fill_(0.)
-
 
     def forward(self, text_embeds, video_embeds):
         """

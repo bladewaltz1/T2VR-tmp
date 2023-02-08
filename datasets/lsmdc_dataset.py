@@ -1,16 +1,4 @@
 import os
-import cv2
-import sys
-import torch
-import random
-import itertools
-import numpy as np
-import pandas as pd
-import ujson as json
-from PIL import Image
-from torchvision import transforms
-from collections import defaultdict
-from modules.basic_utils import load_json
 from torch.utils.data import Dataset
 from config.base_config import Config
 from datasets.video_capture import VideoCapture
@@ -28,17 +16,16 @@ class LSMDCDataset(Dataset):
         self.videos_dir = config.videos_dir
         self.img_transforms = img_transforms
         self.split_type = split_type
-        
+
         self.clip2caption = {}
         if split_type == 'train':
             train_file = 'data/LSMDC/LSMDC16_annos_training.csv'
             self._compute_clip2caption(train_file)
-               
+
         else:
             test_file = 'data/LSMDC/LSMDC16_challenge_1000_publictect.csv'
             self._compute_clip2caption(test_file)
   
-
     def __getitem__(self, index):
         video_path, caption, video_id = self._get_vidpath_and_caption_by_index(index)
         imgs, idxs = VideoCapture.load_frames_from_video(video_path, 
@@ -55,10 +42,8 @@ class LSMDCDataset(Dataset):
             'text': caption,
         }
 
-    
     def __len__(self):
         return len(self.clip2caption)
-
 
     def _get_vidpath_and_caption_by_index(self, index):
         # returns video path and caption as string
@@ -69,7 +54,6 @@ class LSMDCDataset(Dataset):
 
         return video_path, caption, clip_id
 
-            
     def _compute_clip2caption(self, csv_file):
         with open(csv_file, 'r') as fp:
             for line in fp:

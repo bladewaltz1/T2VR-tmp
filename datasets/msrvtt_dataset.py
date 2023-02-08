@@ -1,14 +1,5 @@
 import os
-import cv2
-import sys
-import torch
-import random
-import itertools
-import numpy as np
 import pandas as pd
-import ujson as json
-from PIL import Image
-from torchvision import transforms
 from collections import defaultdict
 from modules.basic_utils import load_json
 from torch.utils.data import Dataset
@@ -44,7 +35,6 @@ class MSRVTTDataset(Dataset):
             self._construct_all_train_pairs()
         else:
             self.test_df = pd.read_csv(test_csv)
-
             
     def __getitem__(self, index):
         video_path, caption, video_id = self._get_vidpath_and_caption_by_index(index)
@@ -61,13 +51,11 @@ class MSRVTTDataset(Dataset):
             'video': imgs,
             'text': caption,
         }
-
     
     def __len__(self):
         if self.split_type == 'train':
             return len(self.all_train_pairs)
         return len(self.test_df)
-
 
     def _get_vidpath_and_caption_by_index(self, index):
         # returns video path and caption as string
@@ -81,7 +69,6 @@ class MSRVTTDataset(Dataset):
 
         return video_path, caption, vid
 
-    
     def _construct_all_train_pairs(self):
         self.all_train_pairs = []
         if self.split_type == 'train':
@@ -89,7 +76,6 @@ class MSRVTTDataset(Dataset):
                 for caption in self.vid2caption[vid]:
                     self.all_train_pairs.append([vid, caption])
 
-            
     def _compute_vid2caption(self):
         self.vid2caption = defaultdict(list)
         for annotation in self.db['sentences']:

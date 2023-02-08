@@ -1,5 +1,7 @@
-from torchvision import transforms
 from PIL import Image
+
+from torchvision import transforms
+
 
 def init_transform_dict(input_res=224):
     tsfm_dict = {

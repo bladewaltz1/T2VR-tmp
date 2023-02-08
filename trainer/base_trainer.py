@@ -1,6 +1,8 @@
-import torch
 import os
 from abc import abstractmethod
+
+import torch
+
 from config.base_config import Config
 
 
@@ -45,7 +47,6 @@ class BaseTrainer:
         """
         raise NotImplementedError
 
-
     def train(self):
         for epoch in range(self.start_epoch, self.num_epochs + 1):
             result = self._train_epoch(epoch)
@@ -85,7 +86,6 @@ class BaseTrainer:
             torch.save(state, filename)
             print("Saving checkpoint: {} ...".format(filename))
 
-
     def load_checkpoint(self, model_name):
         """
         Load from saved checkpoints
@@ -96,7 +96,7 @@ class BaseTrainer:
         checkpoint = torch.load(checkpoint_path)
         self.start_epoch = checkpoint['epoch'] + 1 if 'epoch' in checkpoint else 1
         state_dict = checkpoint['state_dict']
-        
+
         self.model.load_state_dict(state_dict)
 
         if self.optimizer is not None:

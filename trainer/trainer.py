@@ -1,10 +1,12 @@
-from config.base_config import Config
+from collections import defaultdict, deque
+
 import numpy as np
 import torch
-from collections import defaultdict, deque
-from trainer.base_trainer import BaseTrainer
-from modules.metrics import sim_matrix_training, sim_matrix_inference, generate_embeds_per_video_id
 from tqdm import tqdm
+
+from config.base_config import Config
+from modules.metrics import sim_matrix_training, sim_matrix_inference, generate_embeds_per_video_id
+from trainer.base_trainer import BaseTrainer
 
 
 class Trainer(BaseTrainer):
@@ -28,7 +30,6 @@ class Trainer(BaseTrainer):
         self.best_window = -1.0
         self.best = -1.0
 
-
     def _train_epoch(self, epoch):
         """
         Training logic for an epoch
@@ -39,7 +40,7 @@ class Trainer(BaseTrainer):
         total_loss = 0.0
         num_steps = len(self.train_data_loader)
         eval_steps = np.linspace(0, num_steps-1, self.evals_per_epoch+1, dtype=int)[1:]
-        
+
         for batch_idx, data in enumerate(self.train_data_loader):
             # then assume we must tokenize the input, e.g. its a string
             if self.tokenizer is not None:
@@ -49,15 +50,15 @@ class Trainer(BaseTrainer):
                 data['text'] = data['text'].to(self.device)
             else:
                 data['text'] = {key: val.to(self.device) for key, val in data['text'].items()}
-            
+
             data['video'] = data['video'].to(self.device)
 
             text_embeds, video_embeds_pooled = self.model(data)
             output = sim_matrix_training(text_embeds, video_embeds_pooled, self.pooling_type)
-            
+
             loss = self.loss(output, self.model.clip.logit_scale)
             loss.backward()
-            
+
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
             if self.lr_scheduler is not None:
@@ -99,7 +100,6 @@ class Trainer(BaseTrainer):
 
         return res
 
-    
     def _valid_epoch_step(self, epoch, step, num_steps):
         """
         Validate at a step when training an epoch at a certain step
@@ -110,7 +110,7 @@ class Trainer(BaseTrainer):
         text_embed_arr = []
         vid_embed_arr = []
         all_vid_ids = []
-        
+
         with torch.no_grad():
             for _, data in tqdm(enumerate(self.valid_data_loader)):
                 if self.tokenizer is not None:
@@ -121,7 +121,7 @@ class Trainer(BaseTrainer):
                     data['text'] = {key: val.to(self.device) for key, val in data['text'].items()}
 
                 data['video'] = data['video'].to(self.device)
-                
+
                 text_embed, vid_embed, vid_embed_pooled = self.model(data, return_all_frames=True)
                 text_embed_arr.append(text_embed.cpu())
                 vid_embed_arr.append(vid_embed.cpu())
@@ -132,7 +132,7 @@ class Trainer(BaseTrainer):
 
                 for v_id in data['video_id']:
                     all_vid_ids.append(v_id)
-                
+
             text_embeds = torch.cat(text_embed_arr)
             vid_embeds = torch.cat(vid_embed_arr)
 
@@ -141,9 +141,9 @@ class Trainer(BaseTrainer):
             for idx, v_id in enumerate(all_vid_ids):
                 if v_id not in vid_embeds_per_video_id:
                     vid_embeds_per_video_id[v_id] = vid_embeds[idx]
-            
+
             vid_embeds = torch.stack([vid_embeds_per_video_id[v_id] for v_id in vid_embeds_per_video_id])
-             
+
             # Pool frames for inference once we have all texts and videos
             self.model.pool_frames.cpu()
             vid_embeds_pooled = self.model.pool_frames(text_embeds, vid_embeds)
@@ -151,14 +151,14 @@ class Trainer(BaseTrainer):
 
             text_embeds_per_video_id, vid_embeds_pooled_per_video_id = generate_embeds_per_video_id(text_embeds, 
                     vid_embeds_pooled, all_vid_ids, self.pooling_type)
-            
+
             sims = sim_matrix_inference(text_embeds_per_video_id, vid_embeds_pooled_per_video_id, self.pooling_type)
 
             total_val_loss = total_val_loss / len(self.valid_data_loader)
 
             metrics = self.metrics
             res = metrics(sims)
-            
+
             # Compute window metrics
             for m in res:
                 self.window_metric[m].append(res[m])
@@ -174,7 +174,7 @@ class Trainer(BaseTrainer):
                   f"MedR: {res['MedR']} (window: {res['MedR-window']})\n",
                   f"MeanR: {res['MeanR']} (window: {res['MeanR-window']})\n",
                   f"Loss: {total_val_loss}")
-            
+
             res['loss_val'] =  total_val_loss
 
             if self.writer is not None:

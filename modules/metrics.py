@@ -1,7 +1,5 @@
 import numpy as np
 import torch
-import torch.nn.functional as F
-import scipy.stats
 
 
 def sim_matrix_training(text_embeds, vid_embeds_pooled, pooling_type):
@@ -16,13 +14,13 @@ def sim_matrix_training(text_embeds, vid_embeds_pooled, pooling_type):
 
     if pooling_type == 'avg':
         sims = torch.mm(text_embeds, vid_embeds_pooled.t())
-        
+
     else:
         # num_texts x embed_dim x num_vids
         vid_embeds_pooled = vid_embeds_pooled.permute(1,2,0)
         # num_texts x 1 x embed_dim
         text_embeds = text_embeds.unsqueeze(1)
-        
+
         sims = torch.bmm(text_embeds, vid_embeds_pooled).squeeze(1)
 
     return sims
@@ -58,7 +56,7 @@ def sim_matrix_inference(text_embeds_per_video_id, vid_embeds_pooled_per_video_i
 
         sims = torch.bmm(text_embeds_per_video_id, vid_embeds_pooled_per_video_id)
         sims = sims.view(num_vids, max_text_per_vid, 1, num_vids).squeeze(2)
-        
+
     return sims
 
 
@@ -113,12 +111,12 @@ def t2v_metrics(sims):
     # Permute sims so it represents a sequence of text-video similarity matrices.
     # Then obtain the double argsort to position the rank on the diagonal
     stacked_sims = sims.permute(1,0,2)
-    
+
     sims_sort = torch.argsort(stacked_sims, dim=-1, descending=True)
     sims_sort_2 = torch.argsort(sims_sort, dim=-1, descending=False)
 
     ranks = torch.flatten(torch.diagonal(sims_sort_2, dim1=1, dim2=2))
-    
+
     # Now we need to extract valid ranks, as some belong to inf padding values
     valid_check = torch.flatten(torch.diagonal(sims, dim1 = 0, dim2 = 2))
     mask = ~ torch.logical_or(torch.isinf(valid_check), torch.isnan(valid_check))
@@ -151,16 +149,14 @@ def compute_metrics(lst):
     metrics["R100"] = 100 * float(np.sum(lst < 100)) / len(lst)
     metrics["MedR"] = np.median(lst) + 1
     metrics["MeanR"] = np.mean(lst) + 1
-    #stats = [metrics[x] for x in ("R1", "R5", "R10")]
-    #metrics["geometric_mean_R1-R5-R10"] = scipy.stats.mstats.gmean(stats)
     return metrics
 
 
 def pad_and_stack_dict_to_tensor(input, order, d=512):
     max_length = max([input[k].shape[0] for k in input])
-    
+
     padded_input = {k: torch.cat([input[k], torch.full((max_length - input[k].shape[0], d), 
                                                         float("-inf"), device = input[k].device)]) for k in input}
-    
+
     padded_stacked_input = torch.stack([padded_input[k] for k in order], dim = 0)
     return padded_stacked_input
