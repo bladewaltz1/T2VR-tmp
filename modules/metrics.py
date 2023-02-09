@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 
+from modules.basic_utils import concat_all_gather
+
 
 def sim_matrix_training(text_embeds, vid_embeds_pooled, pooling_type):
     """
@@ -23,7 +25,27 @@ def sim_matrix_training(text_embeds, vid_embeds_pooled, pooling_type):
 
         sims = torch.bmm(text_embeds, vid_embeds_pooled).squeeze(1)
 
-    return sims
+    return (sims,)
+
+
+def sim_matrix_training_sync(text_embeds, vid_embeds_pooled):
+    """
+    Computes the similarity matrix using pooled video frames
+    
+    Output
+        sims_t2v: num_texts x K*num_vids
+        sims_v2t: num_vids x K*num_texts
+    """
+    text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
+    vid_embeds_pooled = vid_embeds_pooled / vid_embeds_pooled.norm(dim=-1, keepdim=True)
+
+    text_embeds_all_gather = concat_all_gather(text_embeds)
+    vid_embeds_pooled_all_gather = concat_all_gather(vid_embeds_pooled)
+
+    sims_t2v = torch.mm(text_embeds, vid_embeds_pooled_all_gather.t())
+    sims_v2t = torch.mm(vid_embeds_pooled, text_embeds_all_gather.t())
+
+    return (sims_t2v, sims_v2t)
 
 
 def sim_matrix_inference(text_embeds_per_video_id, vid_embeds_pooled_per_video_id, pooling_type):

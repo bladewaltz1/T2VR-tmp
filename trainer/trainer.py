@@ -7,6 +7,7 @@ from tqdm import tqdm
 from config.base_config import Config
 from modules.metrics import (
     sim_matrix_training, 
+    sim_matrix_training_sync,
     sim_matrix_inference, 
     generate_embeds_per_video_id, 
 )
@@ -41,6 +42,7 @@ class Trainer(BaseTrainer):
         :return: A log that contains all information you want to save.
         """
         self.model.train()
+        self.loss.train()
         total_loss = 0.0
         num_steps = len(self.train_data_loader)
         eval_steps = np.linspace(0, num_steps-1, self.evals_per_epoch+1, dtype=int)[1:]
@@ -58,9 +60,14 @@ class Trainer(BaseTrainer):
             data['video'] = data['video'].to(self.device)
 
             text_embeds, video_embeds_pooled = self.model(data)
-            output = sim_matrix_training(text_embeds, video_embeds_pooled, self.pooling_type)
 
-            loss = self.loss(output, self.model.module.clip.logit_scale)
+            # sync among gpus
+            if torch.distributed.get_world_size() > 1 and self.pooling_type == 'avg':
+                output = sim_matrix_training_sync(text_embeds, video_embeds_pooled)
+            else:
+                output = sim_matrix_training(text_embeds, video_embeds_pooled, self.pooling_type)
+
+            loss = self.loss(*output, self.model.module.clip.logit_scale)
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -87,6 +94,7 @@ class Trainer(BaseTrainer):
             if self.local_rank == 0 and batch_idx in eval_steps:
                 val_res = self._valid_epoch_step(epoch, batch_idx, num_steps-1)
                 self.model.train()
+                self.loss.train()
 
                 if val_res['R1-window'] > self.best_window:
                     self.best_window = val_res['R1-window']
@@ -110,6 +118,7 @@ class Trainer(BaseTrainer):
         :return: A log that contains information about validation
         """
         self.model.eval()
+        self.loss.eval()
         total_val_loss = 0.0
         text_embed_arr = []
         vid_embed_arr = []
@@ -131,7 +140,7 @@ class Trainer(BaseTrainer):
                 vid_embed_arr.append(vid_embed.cpu())
                 sims_batch = sim_matrix_training(text_embed, vid_embed_pooled, self.pooling_type)
 
-                curr_loss = self.loss(sims_batch, self.model.module.clip.logit_scale)
+                curr_loss = self.loss(*sims_batch, self.model.module.clip.logit_scale)
                 total_val_loss += curr_loss.item()
 
                 for v_id in data['video_id']:
