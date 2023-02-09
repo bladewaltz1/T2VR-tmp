@@ -5,10 +5,7 @@ Author: ArrowLuo
 import os
 import argparse
 import subprocess
-import time
-import multiprocessing
 from multiprocessing import Pool
-import shutil
 try:
     from psutil import cpu_count
 except:
@@ -24,7 +21,7 @@ def compress(paras):
                    '-filter:v',
                    'scale=\'if(gt(a,1),trunc(oh*a/2)*2,224)\':\'if(gt(a,1),224,trunc(ow*a/2)*2)\'',  # scale to 224
                    '-map', '0:v',
-                   '-r', '3',  # frames per second
+                   '-r', '12',  # frames per second
                    output_video_path,
                    ]
         ffmpeg = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
