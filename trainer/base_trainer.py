@@ -2,6 +2,8 @@ import os
 from abc import abstractmethod
 
 import torch
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.tensorboard.writer import SummaryWriter
 
 from config.base_config import Config
 
@@ -10,12 +12,16 @@ class BaseTrainer:
     """
     Base class for all trainers
     """
-    def __init__(self, model, loss, metrics, optimizer, config: Config, writer=None):
+    def __init__(self, model, loss, metrics, optimizer, config: Config, local_rank=0):
         self.config = config
         # setup GPU device if available, move model into configured device
-        self.device = self._prepare_device()
-        self.model = model.to(self.device)
+        self.device = torch.device(config.device)
 
+        model = model.to(self.device)
+        self.model = DistributedDataParallel(model, 
+                                             device_ids=[local_rank], 
+                                             find_unused_parameters=True,
+                                             output_device=local_rank)
         self.loss = loss.to(self.device)
         self.metrics = metrics
         self.optimizer = optimizer
@@ -23,11 +29,16 @@ class BaseTrainer:
         self.global_step = 0
 
         self.num_epochs = config.num_epochs
-        self.writer = writer
         self.checkpoint_dir = config.model_path
 
         self.log_step = config.log_step
         self.evals_per_epoch = config.evals_per_epoch
+
+        self.local_rank = local_rank
+        if self.local_rank == 0:
+            self.writer = SummaryWriter(log_dir=config.tb_log_dir)
+        else:
+            self.writer = None
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -50,19 +61,11 @@ class BaseTrainer:
     def train(self):
         for epoch in range(self.start_epoch, self.num_epochs + 1):
             result = self._train_epoch(epoch)
-            if epoch % self.config.save_every == 0:
+            if self.local_rank == 0 and epoch % self.config.save_every == 0:
                     self._save_checkpoint(epoch, save_best=False)
 
     def validate(self):
         self._valid_epoch_step(0,0,0)
-
-    def _prepare_device(self):
-        """
-        setup GPU device if available, move model into configured device
-        """
-        use_gpu = torch.cuda.is_available()
-        device = torch.device('cuda:0' if use_gpu else 'cpu')
-        return device
 
     def _save_checkpoint(self, epoch, save_best=False):
         """

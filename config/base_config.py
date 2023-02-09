@@ -5,6 +5,10 @@ class Config(ABC):
     def __init__(self):
         args = self.parse_args()
 
+        self.local_rank = args.local_rank
+        self.distributed = args.distributed
+        self.device = args.device
+
         self.dataset_name = args.dataset_name
         self.videos_dir = args.videos_dir
         self.msrvtt_train_file = args.msrvtt_train_file
@@ -42,9 +46,7 @@ class Config(ABC):
 
         self.num_workers = args.num_workers
         self.seed = args.seed
-        self.no_tensorboard = args.no_tensorboard
         self.tb_log_dir = args.tb_log_dir
-
 
     @abstractmethod
     def parse_args(self):

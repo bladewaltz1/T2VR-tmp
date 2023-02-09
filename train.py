@@ -3,7 +3,6 @@ import random
 
 import torch
 import numpy as np
-from torch.utils.tensorboard.writer import SummaryWriter
 from transformers import CLIPTokenizer
 from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 
@@ -18,10 +17,10 @@ from trainer.trainer import Trainer
 def main():
     config = AllConfig()
     os.environ['TOKENIZERS_PARALLELISM'] = "false"
-    if not config.no_tensorboard:
-        writer = SummaryWriter(log_dir=config.tb_log_dir)
-    else:
-        writer = None
+
+    torch.cuda.set_device(config.local_rank)
+    torch.distributed.init_process_group('nccl', init_method='env://')
+    torch.distributed.barrier()
 
     if config.seed >= 0:
         torch.manual_seed(config.seed)
@@ -67,8 +66,8 @@ def main():
                       train_data_loader=train_data_loader,
                       valid_data_loader=valid_data_loader,
                       lr_scheduler=scheduler,
-                      writer=writer,
-                      tokenizer=tokenizer)
+                      tokenizer=tokenizer,
+                      local_rank=config.local_rank)
 
     trainer.train()
 

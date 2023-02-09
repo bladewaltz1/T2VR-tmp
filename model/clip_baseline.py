@@ -11,6 +11,7 @@ class CLIPBaseline(nn.Module):
         self.config = config
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
         self.pool_frames = BaselinePooling(config.pooling_type, config)
+        self.clip.logit_scale.requires_grad = False
 
     def forward(self, data, return_all_frames=False):
         batch_size = data['video'].shape[0]

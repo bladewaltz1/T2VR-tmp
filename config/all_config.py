@@ -11,6 +11,10 @@ class AllConfig(Config):
     def parse_args(self):
         description = 'Text-to-Video Retrieval'
         parser = argparse.ArgumentParser(description=description)
+        # distributed
+        parser.add_argument('--local_rank', type=int, default=0)
+        parser.add_argument('--distributed', type=int, default=1)
+        parser.add_argument('--device', type=str, default='cuda')
 
         # data parameters
         parser.add_argument('--dataset_name', type=str, default='MSRVTT', help="Dataset name")
@@ -54,7 +58,6 @@ class AllConfig(Config):
         # system parameters
         parser.add_argument('--num_workers', type=int, default=8)
         parser.add_argument('--seed', type=int, default=24, help='Random seed')
-        parser.add_argument('--no_tensorboard', action='store_true', default=False)
         parser.add_argument('--tb_log_dir', type=str, default='logs')
 
         args = parser.parse_args()

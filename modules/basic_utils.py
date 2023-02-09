@@ -2,6 +2,8 @@ import os
 import json
 import shutil
 
+import torch
+
 
 # Only works with huggingface param names
 def freeze_layers_clip(model, freeze_layer_num):
@@ -41,6 +43,21 @@ def mkdirp(p):
     if not os.path.exists(p):
         os.makedirs(p)
 
+
 def deletedir(p):
     if os.path.exists(p):
         shutil.rmtree(p)
+
+
+@torch.no_grad()
+def concat_all_gather(tensor):
+    """
+    Performs all_gather operation on the provided tensors.
+    *** Warning ***: torch.distributed.all_gather has no gradient.
+    """
+    tensors_gather = [torch.ones_like(tensor)
+        for _ in range(torch.distributed.get_world_size())]
+    torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
+
+    output = torch.cat(tensors_gather, dim=0)
+    return output

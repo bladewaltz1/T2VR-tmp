@@ -12,6 +12,7 @@ class CLIPTransformer(nn.Module):
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
         config.pooling_type = 'transformer'
         self.pool_frames = Transformer(config)
+        self.clip.logit_scale.requires_grad = False
 
     def forward(self, data, return_all_frames=False):
         batch_size = data['video'].shape[0]

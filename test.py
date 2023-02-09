@@ -4,7 +4,6 @@ import random
 import torch
 import numpy as np
 from transformers import CLIPTokenizer
-from torch.utils.tensorboard.writer import SummaryWriter
 
 from config.all_config import AllConfig
 from datasets.data_factory import DataFactory
@@ -17,10 +16,6 @@ from trainer.trainer import Trainer
 def main():
     config = AllConfig()
     os.environ['TOKENIZERS_PARALLELISM'] = "false"
-    if not config.no_tensorboard:
-        writer = SummaryWriter(log_dir=config.tb_log_dir)
-    else:
-        writer = None
 
     if config.seed >= 0:
         torch.manual_seed(config.seed)
@@ -50,7 +45,6 @@ def main():
                       train_data_loader=None,
                       valid_data_loader=test_data_loader,
                       lr_scheduler=None,
-                      writer=writer,
                       tokenizer=tokenizer)
 
     if config.load_epoch is not None:

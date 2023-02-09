@@ -5,7 +5,11 @@ import torch
 from tqdm import tqdm
 
 from config.base_config import Config
-from modules.metrics import sim_matrix_training, sim_matrix_inference, generate_embeds_per_video_id
+from modules.metrics import (
+    sim_matrix_training, 
+    sim_matrix_inference, 
+    generate_embeds_per_video_id, 
+)
 from trainer.base_trainer import BaseTrainer
 
 
@@ -17,13 +21,13 @@ class Trainer(BaseTrainer):
     """
 
     def __init__(self, model, loss, metrics, optimizer, config: Config, train_data_loader, 
-                 valid_data_loader, tokenizer, lr_scheduler=None, writer=None):
+                 valid_data_loader, tokenizer, lr_scheduler=None, local_rank=0):
 
-        super().__init__(model, loss, metrics, optimizer, config, writer)
+        super().__init__(model, loss, metrics, optimizer, config, local_rank)
         self.train_data_loader = train_data_loader
         self.valid_data_loader = valid_data_loader
         self.lr_scheduler = lr_scheduler
-        self.tokenizer = tokenizer 
+        self.tokenizer = tokenizer
 
         self.pooling_type = config.pooling_type
         self.window_metric = defaultdict(lambda: deque(maxlen=config.eval_window_size))
@@ -56,7 +60,7 @@ class Trainer(BaseTrainer):
             text_embeds, video_embeds_pooled = self.model(data)
             output = sim_matrix_training(text_embeds, video_embeds_pooled, self.pooling_type)
 
-            loss = self.loss(output, self.model.clip.logit_scale)
+            loss = self.loss(output, self.model.module.clip.logit_scale)
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -65,22 +69,22 @@ class Trainer(BaseTrainer):
                 self.lr_scheduler.step()
             self.optimizer.zero_grad()
 
-            torch.clamp_(self.model.clip.logit_scale.data, max=np.log(100))
+            # torch.clamp_(self.model.module.clip.logit_scale.data, max=np.log(100))
 
             self.global_step += 1
-            if self.writer is not None:
+            if self.local_rank == 0 and self.writer is not None:
                 self.writer.add_scalar('train/loss_train', loss.detach().item(), self.global_step)
 
             total_loss += loss.detach().item()
 
-            if batch_idx % self.log_step == 0:
+            if self.local_rank == 0 and batch_idx % self.log_step == 0:
                 print('Train Epoch: {} dl: {}/{} Loss: {:.6f}'.format(
                     epoch,
                     batch_idx,
                     num_steps-1,
                     loss.detach().item()))
 
-            if batch_idx in eval_steps:
+            if self.local_rank == 0 and batch_idx in eval_steps:
                 val_res = self._valid_epoch_step(epoch, batch_idx, num_steps-1)
                 self.model.train()
 
@@ -127,7 +131,7 @@ class Trainer(BaseTrainer):
                 vid_embed_arr.append(vid_embed.cpu())
                 sims_batch = sim_matrix_training(text_embed, vid_embed_pooled, self.pooling_type)
 
-                curr_loss = self.loss(sims_batch, self.model.clip.logit_scale)
+                curr_loss = self.loss(sims_batch, self.model.module.clip.logit_scale)
                 total_val_loss += curr_loss.item()
 
                 for v_id in data['video_id']:
@@ -145,9 +149,9 @@ class Trainer(BaseTrainer):
             vid_embeds = torch.stack([vid_embeds_per_video_id[v_id] for v_id in vid_embeds_per_video_id])
 
             # Pool frames for inference once we have all texts and videos
-            self.model.pool_frames.cpu()
-            vid_embeds_pooled = self.model.pool_frames(text_embeds, vid_embeds)
-            self.model.pool_frames.cuda()
+            self.model.module.pool_frames.cpu()
+            vid_embeds_pooled = self.model.module.pool_frames(text_embeds, vid_embeds)
+            self.model.module.pool_frames.cuda()
 
             text_embeds_per_video_id, vid_embeds_pooled_per_video_id = generate_embeds_per_video_id(text_embeds, 
                     vid_embeds_pooled, all_vid_ids, self.pooling_type)
