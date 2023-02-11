@@ -12,6 +12,10 @@ class CLIPBaseline(nn.Module):
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
         self.pool_frames = BaselinePooling(config.pooling_type, config)
 
+        params_optimizer = list(self.named_parameters())
+        self.clip_params = [p for n, p in params_optimizer if "clip." in n]
+        self.noclip_params = [p for n, p in params_optimizer if "clip." not in n]
+
     def forward(self, data, return_all_frames=False):
         batch_size = data['video'].shape[0]
         text_data = data['text']

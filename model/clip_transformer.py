@@ -13,6 +13,10 @@ class CLIPTransformer(nn.Module):
         config.pooling_type = 'transformer'
         self.pool_frames = Transformer(config)
 
+        params_optimizer = list(self.named_parameters())
+        self.clip_params = [p for n, p in params_optimizer if "clip." in n]
+        self.noclip_params = [p for n, p in params_optimizer if "clip." not in n]
+
     def forward(self, data, return_all_frames=False):
         batch_size = data['video'].shape[0]
         text_data = data['text']

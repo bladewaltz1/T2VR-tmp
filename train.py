@@ -45,13 +45,9 @@ def main():
     else:
         raise NotImplemented
 
-    params_optimizer = list(model.named_parameters())
-    clip_params = [p for n, p in params_optimizer if "clip." in n]
-    noclip_params = [p for n, p in params_optimizer if "clip." not in n]
-
     optimizer_grouped_params = [
-        {'params': clip_params, 'lr': config.clip_lr},
-        {'params': noclip_params, 'lr': config.noclip_lr}
+        {'params': model.clip_params, 'lr': config.clip_lr},
+        {'params': model.noclip_params, 'lr': config.noclip_lr}
     ]
     optimizer = AdamW(optimizer_grouped_params, weight_decay=config.weight_decay)
     num_training_steps = len(train_data_loader) * config.num_epochs

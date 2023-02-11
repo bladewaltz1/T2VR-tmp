@@ -9,6 +9,7 @@ class Config(ABC):
         self.videos_dir = args.videos_dir
         self.msrvtt_train_file = args.msrvtt_train_file
         self.num_frames = args.num_frames
+        self.num_prompts = args.num_prompts
         self.video_sample_type = args.video_sample_type
         self.input_res = args.input_res
 
