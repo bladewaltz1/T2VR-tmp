@@ -17,6 +17,10 @@ from trainer.trainer import Trainer
 
 def main():
     config = AllConfig()
+
+    assert config.num_frames == config.num_prompts
+    assert config.num_test_frames % config.num_prompts == 0
+
     os.environ['TOKENIZERS_PARALLELISM'] = "false"
     if not config.no_tensorboard:
         writer = SummaryWriter(log_dir=config.tb_log_dir)

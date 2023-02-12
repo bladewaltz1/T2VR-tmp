@@ -170,124 +170,6 @@ class CLIPTextEmbeddings(nn.Module):
         return embeddings
 
 
-class CLIPAttentionPA(nn.Module):
-    """Multi-headed attention from 'Attention Is All You Need' paper"""
-
-    def __init__(self, config):
-        super().__init__()
-        self.config = config
-        self.embed_dim = config.hidden_size
-        self.num_heads = config.num_attention_heads
-        self.head_dim = self.embed_dim // self.num_heads
-        assert (
-            self.head_dim * self.num_heads == self.embed_dim
-        ), f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim} and `num_heads`: {self.num_heads})."
-        self.scale = self.head_dim**-0.5
-        self.dropout = config.attention_dropout
-
-        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
-
-        self.prompt_k_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.prompt_v_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.prompt_q_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.num_frames = config.num_frames
-        self.num_prompts = config.num_prompts
-
-    def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
-        return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        causal_attention_mask: Optional[torch.Tensor] = None,
-        output_attentions: Optional[bool] = False,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        """Input shape: Batch x Time x Channel"""
-
-        bsz, tgt_len, embed_dim = hidden_states.size()
-        num_frames = self.num_frames
-        num_prompts = self.num_prompts
-        seq_len = tgt_len - num_frames * num_prompts
-
-        # get query proj
-        hidden_states_ = hidden_states[:, :seq_len, :]
-        query_states = self.q_proj(hidden_states_) * self.scale
-        key_states = self._shape(self.k_proj(hidden_states_), -1, bsz)
-        value_states = self._shape(self.v_proj(hidden_states_), -1, bsz)
-
-        ################
-        prompts = hidden_states[:, seq_len:, :]
-        prompts_query = self.prompt_q_proj(prompts) * self.scale
-        prompts_key = self._shape(self.prompt_k_proj(prompts), -1, bsz)
-        prompts_value = self._shape(self.prompt_v_proj(prompts), -1, bsz)
-        query_states = torch.cat([query_states, prompts_query], dim=1)
-        key_states = torch.cat([key_states, prompts_key], dim=2)
-        value_states = torch.cat([value_states, prompts_value], dim=2)
-
-        proj_shape = (bsz * self.num_heads, -1, self.head_dim)
-        query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
-        key_states = key_states.view(*proj_shape)
-        value_states = value_states.view(*proj_shape)
-
-        src_len = key_states.size(1)
-        attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
-
-        if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
-            raise ValueError(
-                f"Attention weights should be of size {(bsz * self.num_heads, tgt_len, src_len)}, but is {attn_weights.size()}"
-            )
-
-        # apply the causal_attention_mask first
-        if causal_attention_mask is not None:
-            if causal_attention_mask.size() != (bsz, 1, tgt_len, src_len):
-                raise ValueError(
-                    f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {causal_attention_mask.size()}"
-                )
-            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + causal_attention_mask
-            attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-
-        if attention_mask is not None:
-            if attention_mask.size() != (bsz, 1, tgt_len, src_len):
-                raise ValueError(
-                    f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.size()}"
-                )
-            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
-            attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-
-        attn_weights = nn.functional.softmax(attn_weights, dim=-1)
-
-        if output_attentions:
-            # this operation is a bit akward, but it's required to
-            # make sure that attn_weights keeps its gradient.
-            # In order to do so, attn_weights have to reshaped
-            # twice and have to be reused in the following
-            attn_weights_reshaped = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            attn_weights = attn_weights_reshaped.view(bsz * self.num_heads, tgt_len, src_len)
-        else:
-            attn_weights_reshaped = None
-
-        attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
-
-        attn_output = torch.bmm(attn_probs, value_states)
-
-        if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
-            raise ValueError(
-                f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is {attn_output.size()}"
-            )
-
-        attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
-        attn_output = attn_output.transpose(1, 2)
-        attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
-
-        attn_output = self.out_proj(attn_output)
-
-        return attn_output, attn_weights_reshaped
-
-
 class CLIPAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
@@ -402,7 +284,7 @@ class CLIPMLP(nn.Module):
         return hidden_states
 
 
-class CLIPEncoderLayerPS(nn.Module):
+class CLIPEncoderLayerPT(nn.Module):
     def __init__(self, config: CLIPConfig):
         super().__init__()
         self.embed_dim = config.hidden_size
@@ -411,8 +293,8 @@ class CLIPEncoderLayerPS(nn.Module):
         self.mlp = CLIPMLP(config)
         self.layer_norm2 = nn.LayerNorm(self.embed_dim)
 
-        self.num_frames = config.num_frames
-        self.num_prompts = config.num_prompts
+        self.nf = config.num_frames
+        self.np = config.num_prompts
 
     def forward(
         self,
@@ -432,24 +314,19 @@ class CLIPEncoderLayerPS(nn.Module):
                 Whether or not to return the attentions tensors of all attention layers. See `attentions` under
                 returned tensors for more detail.
         """
-        num_frames = self.num_frames
-        bs = hidden_states.size(0) // num_frames
-        embed_dim = hidden_states.size(2)
-        num_prompts = self.num_prompts
-        seq_len = hidden_states.size(1) - num_prompts
+        bs = hidden_states.size(0) // self.nf
+        Ls = hidden_states.size(1) - self.np
 
+        # bs * nf, Ls + np, embed_dim
         residual = hidden_states
         hidden_states = self.layer_norm1(hidden_states)
 
-        # bs * num_frames, seq_len, embed_dim
-        hidden_states_ = hidden_states[:, :seq_len, :]
-        # bs * num_frames, num_prompts, embed_dim
-        prompts = hidden_states[:, seq_len:, :]
-        prompts = prompts.reshape(bs, 1, num_frames * num_prompts, embed_dim)
-        # bs * num_frames, num_frames * num_prompts, embed_dim
-        prompts = prompts.repeat(1, num_frames, 1, 1).flatten(0, 1)
-        # bs * num_frames, seq_len + num_frames * num_prompts, embed_dim
-        hidden_states = torch.cat([hidden_states_, prompts], dim=1)
+        num_chunks = self.nf // self.np
+        hidden_states = hidden_states.reshape(bs, num_chunks, self.np, Ls + self.np, -1)
+        for i in range(num_chunks):
+            prompts = hidden_states[:, [i], :, Ls:, :].clone()
+            hidden_states[:, [i], :, Ls:, :] = prompts.transpose(2, 3)
+        hidden_states = hidden_states.flatten(0, 2)
 
         hidden_states, attn_weights = self.self_attn(
             hidden_states=hidden_states,
@@ -457,19 +334,6 @@ class CLIPEncoderLayerPS(nn.Module):
             causal_attention_mask=causal_attention_mask,
             output_attentions=output_attentions,
         )
-
-        # bs * num_frames, seq_len, embed_dim
-        hidden_states_ = hidden_states[:, :seq_len, :]
-        # bs * num_frames, num_frames * num_prompts, embed_dim
-        prompts = hidden_states[:, seq_len:, :]
-        prompts = prompts.reshape(bs, num_frames, num_frames, num_prompts, -1)
-        # bs, num_prompts, embed_dim, num_frames
-        prompts = torch.diagonal(prompts, dim1=1, dim2=2)
-        # bs * num_frames, num_prompts, embed_dim
-        prompts = prompts.permute(0, 3, 1, 2).flatten(0, 1)
-
-        # bs * num_frames, seq_len + num_prompts, embed_dim
-        hidden_states = torch.cat([hidden_states_, prompts], dim=1)
         hidden_states = residual + hidden_states
 
         residual = hidden_states
@@ -582,17 +446,6 @@ class CLIPPreTrainedModel(PreTrainedModel):
                 module.visual_projection.weight,
                 std=module.vision_embed_dim**-0.5 * self.config.initializer_factor,
             )
-        elif isinstance(module, CLIPAttentionPA):
-            factor = self.config.initializer_factor
-            in_proj_std = (module.embed_dim**-0.5) * ((2 * module.config.num_hidden_layers) ** -0.5) * factor
-            out_proj_std = (module.embed_dim**-0.5) * factor
-            nn.init.normal_(module.q_proj.weight, std=in_proj_std)
-            nn.init.normal_(module.k_proj.weight, std=in_proj_std)
-            nn.init.normal_(module.v_proj.weight, std=in_proj_std)
-            nn.init.normal_(module.out_proj.weight, std=out_proj_std)
-            nn.init.normal_(module.prompt_q_proj.weight, std=in_proj_std)
-            nn.init.normal_(module.prompt_k_proj.weight, std=in_proj_std)
-            nn.init.normal_(module.prompt_v_proj.weight, std=in_proj_std)
 
         if isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
@@ -701,7 +554,7 @@ CLIP_INPUTS_DOCSTRING = r"""
 """
 
 
-class CLIPEncoderPSA(nn.Module):
+class CLIPEncoderPT(nn.Module):
     """
     Transformer encoder consisting of `config.num_hidden_layers` self attention layers. Each layer is a
     [`CLIPEncoderLayer`].
@@ -713,23 +566,13 @@ class CLIPEncoderPSA(nn.Module):
     def __init__(self, config: CLIPConfig):
         super().__init__()
         self.config = config
-        self.layers = nn.ModuleList([CLIPEncoderLayerPS(config) for _ in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList([CLIPEncoderLayerPT(config) 
+                                     for _ in range(config.num_hidden_layers)])
         self.gradient_checkpointing = False
 
-        Nf = config.num_frames
-        Np = config.num_prompts
-        self.prompts = nn.Parameter(torch.randn(1, Nf, Np, config.hidden_size))
-        nn.init.normal_(self.prompts, mean=0.0, std=config.hidden_size**-0.5 * config.initializer_factor)
-
-        Ls = (config.image_size // config.patch_size) ** 2 + 1
-        Lt = Ls + Nf * Np
-        attention_mask = torch.empty(1, Nf, 1, Lt, Lt)
-        attention_mask.fill_(-100000.0)
-        attention_mask[0, :, 0, :Ls, :] = 0.0
-        for i in range(Nf):
-            attention_mask[0, i, 0, Ls + i * Np : Ls + (i + 1) * Np, :Ls] = 0.0
-            attention_mask[0, i, 0, Ls + i * Np : Ls + (i + 1) * Np, Ls + i * Np : Ls + (i + 1) * Np] = 0.0
-        self.register_buffer("attention_mask", attention_mask)
+        self.np = config.num_prompts
+        self.nf = config.num_frames
+        self.prompt_embedding = nn.Parameter(torch.randn(self.np, self.np, config.hidden_size))
 
     def forward(
         self,
@@ -778,14 +621,14 @@ class CLIPEncoderPSA(nn.Module):
         encoder_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
 
-        bs = inputs_embeds.size(0) // self.prompts.size(1)
-        # bs * num_frames, 1, seq_len + num_frames * num_prompts, seq_len + num_frames * num_prompts
-        attention_mask = self.attention_mask.repeat(bs, 1, 1, 1, 1).flatten(0, 1)
-
-        # bs * num_frames, seq_len, embed_dim
+        # hidden_states: bs * num_frames, seq_len, embed_dim
         hidden_states = inputs_embeds
+        # prompt_embedding: num_prompts, num_prompts, embed_dim
+        prompts = self.prompt_embedding
+        bs = hidden_states.size(0) // self.nf
+        num_chunks = self.nf // self.np
         # bs * num_frames, num_prompts, embed_dim
-        prompts = self.prompts.repeat(bs, 1, 1, 1).flatten(0, 1)
+        prompts = prompts[None, None].repeat(bs, num_chunks, 1, 1, 1).flatten(0, 2)
         # bs * num_frames, seq_len + num_prompts, embed_dim
         hidden_states = torch.cat([hidden_states, prompts], dim=1)
 
@@ -1076,7 +919,7 @@ class CLIPVisionTransformer(nn.Module):
 
         self.embeddings = CLIPVisionEmbeddings(config)
         self.pre_layrnorm = nn.LayerNorm(embed_dim)
-        self.encoder = CLIPEncoder(config)
+        self.encoder = CLIPEncoderPT(config)
         self.post_layernorm = nn.LayerNorm(embed_dim)
 
     @add_start_docstrings_to_model_forward(CLIP_VISION_INPUTS_DOCSTRING)
@@ -1411,20 +1254,22 @@ class PromptCLIP(nn.Module):
         super(PromptCLIP, self).__init__()
         self.config = config
         clip_config = CLIPConfig.from_pretrained("openai/clip-vit-base-patch32")
-        # clip_config.vision_config.update({
-        #     "num_frames": self.config.num_frames,
-        #     "num_prompts": self.config.num_prompts,
-        # })
+        clip_config.vision_config.update({
+            "num_frames": self.config.num_frames if self.training 
+                else self.config.num_test_frames,
+            "num_prompts": self.config.num_prompts,
+        })
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32", config=clip_config)
-        # for name, param in self.clip.named_parameters():
-        #     if 'prompt' not in name:
-        #         param.requires_grad = False
 
         self.pool_frames = BaselinePooling(config.pooling_type, config)
 
         params_optimizer = list(self.named_parameters())
         self.clip_params = [p for n, p in params_optimizer if "prompt" not in n]
         self.noclip_params = [p for n, p in params_optimizer if "prompt" in n]
+
+        nn.init.normal_(self.clip.vision_model.encoder.prompt_embedding, mean=0.0, 
+            std=clip_config.vision_config.hidden_size**-0.5 * \
+                clip_config.vision_config.initializer_range)
 
     def forward(self, data, return_all_frames=False):
         batch_size = data['video'].shape[0]
@@ -1436,7 +1281,7 @@ class PromptCLIP(nn.Module):
         video_features = self.clip.get_image_features(video_data)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         video_features = video_features / video_features.norm(dim=-1, keepdim=True)
-        video_features = video_features.reshape(batch_size, self.config.num_frames, -1)
+        video_features = video_features.reshape(batch_size, -1, video_features.size(-1))
 
         video_features_pooled = self.pool_frames(text_features, video_features)
             

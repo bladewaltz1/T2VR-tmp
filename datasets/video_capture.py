@@ -9,6 +9,7 @@ class VideoCapture:
     @staticmethod
     def load_frames_from_video(video_path,
                                num_frames,
+                               num_test_frames=None,
                                sample='rand'):
         """
             video_path: str/os.path
@@ -26,6 +27,9 @@ class VideoCapture:
         acc_samples = min(num_frames, vlen)
         intervals = np.linspace(start=0, stop=vlen, num=acc_samples + 1).astype(int)
         ranges = []
+        num_chunks = 1
+        if num_test_frames is not None:
+            num_chunks = num_test_frames // num_frames
 
         # ranges constructs equal spaced intervals (start, end)
         # we can either choose a random image in the interval with 'rand'
@@ -33,9 +37,14 @@ class VideoCapture:
         for idx, interv in enumerate(intervals[:-1]):
             ranges.append((interv, intervals[idx + 1] - 1))
         if sample == 'rand':
-            frame_idxs = [random.choice(range(x[0], x[1])) for x in ranges]
+            frame_idxs = []
+            for _ in range(num_chunks):            
+                frame_idxs.extend([random.choice(range(x[0], x[1])) for x in ranges])
         else:  # sample == 'uniform':
-            frame_idxs = [(x[0] + x[1]) // 2 for x in ranges]
+            frame_idxs = []
+            for i in range(num_chunks):
+                frame_idxs.extend([(x[1] - x[0]) // (num_chunks + 1) * (i + 1) + x[0]
+                                    for x in ranges])
 
         frames = []
         for index in frame_idxs:
@@ -59,7 +68,7 @@ class VideoCapture:
 
         while len(frames) < num_frames:
             frames.append(frames[-1].clone())
-            
+
         frames = torch.stack(frames).float() / 255
         cap.release()
         return frames, frame_idxs
