@@ -2,6 +2,7 @@ import os
 from abc import abstractmethod
 
 import torch
+from timm.utils import ModelEmaV2
 
 from config.base_config import Config
 
@@ -10,11 +11,19 @@ class BaseTrainer:
     """
     Base class for all trainers
     """
-    def __init__(self, model, loss, metrics, optimizer, config: Config, writer=None):
+    def __init__(self, model, loss, metrics, optimizer, config: Config, 
+                 writer=None, use_ema=False):
         self.config = config
         # setup GPU device if available, move model into configured device
         self.device = self._prepare_device()
         self.model = model.to(self.device)
+
+        self.use_ema = use_ema
+        if self.use_ema:
+            self.model_ema = ModelEmaV2(model, decay=config.model_ema_decay)
+            self.model_ema.module.to(self.device)
+        else:
+            self.model_ema = None
 
         self.loss = loss.to(self.device)
         self.metrics = metrics
@@ -77,6 +86,9 @@ class BaseTrainer:
             'optimizer': self.optimizer.state_dict(),
         }
 
+        if self.use_ema:
+            state['state_dict_ema'] = self.model_ema.module.state_dict()
+
         if save_best:
             best_path = os.path.join(self.checkpoint_dir, 'model_best.pth')
             torch.save(state, best_path)
@@ -95,7 +107,10 @@ class BaseTrainer:
         print("Loading checkpoint: {} ...".format(checkpoint_path))
         checkpoint = torch.load(checkpoint_path)
         self.start_epoch = checkpoint['epoch'] + 1 if 'epoch' in checkpoint else 1
-        state_dict = checkpoint['state_dict']
+        if self.use_ema:
+            state_dict = checkpoint['state_dict_ema']
+        else:
+            state_dict = checkpoint['state_dict']
 
         self.model.load_state_dict(state_dict)
 

@@ -68,7 +68,8 @@ def main():
                       valid_data_loader=valid_data_loader,
                       lr_scheduler=scheduler,
                       writer=writer,
-                      tokenizer=tokenizer)
+                      tokenizer=tokenizer,
+                      use_ema=config.use_ema)
 
     trainer.train()
 

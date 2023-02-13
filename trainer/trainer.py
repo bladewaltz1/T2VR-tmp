@@ -17,13 +17,13 @@ class Trainer(BaseTrainer):
     """
 
     def __init__(self, model, loss, metrics, optimizer, config: Config, train_data_loader, 
-                 valid_data_loader, tokenizer, lr_scheduler=None, writer=None):
+                 valid_data_loader, tokenizer, lr_scheduler=None, writer=None, use_ema=False):
 
-        super().__init__(model, loss, metrics, optimizer, config, writer)
+        super().__init__(model, loss, metrics, optimizer, config, writer, use_ema)
         self.train_data_loader = train_data_loader
         self.valid_data_loader = valid_data_loader
         self.lr_scheduler = lr_scheduler
-        self.tokenizer = tokenizer 
+        self.tokenizer = tokenizer
 
         self.pooling_type = config.pooling_type
         self.window_metric = defaultdict(lambda: deque(maxlen=config.eval_window_size))
@@ -65,6 +65,9 @@ class Trainer(BaseTrainer):
                 self.lr_scheduler.step()
             self.optimizer.zero_grad()
 
+            if self.use_ema:
+                self.model_ema.update(self.model)
+
             torch.clamp_(self.model.clip.logit_scale.data, max=np.log(100))
 
             self.global_step += 1
@@ -81,8 +84,11 @@ class Trainer(BaseTrainer):
                     loss.detach().item()))
 
             if batch_idx in eval_steps:
-                val_res = self._valid_epoch_step(epoch, batch_idx, num_steps-1)
-                self.model.train()
+                if self.use_ema:
+                    model = self.model_ema.module
+                else:
+                    model = self.model
+                val_res = self._valid_epoch_step(model, epoch, batch_idx, num_steps-1)
 
                 if val_res['R1-window'] > self.best_window:
                     self.best_window = val_res['R1-window']
@@ -100,12 +106,12 @@ class Trainer(BaseTrainer):
 
         return res
 
-    def _valid_epoch_step(self, epoch, step, num_steps):
+    def _valid_epoch_step(self, model, epoch, step, num_steps):
         """
         Validate at a step when training an epoch at a certain step
         :return: A log that contains information about validation
         """
-        self.model.eval()
+        model.eval()
         total_val_loss = 0.0
         text_embed_arr = []
         vid_embed_arr = []
@@ -122,12 +128,12 @@ class Trainer(BaseTrainer):
 
                 data['video'] = data['video'].to(self.device)
 
-                text_embed, vid_embed, vid_embed_pooled = self.model(data, return_all_frames=True)
+                text_embed, vid_embed, vid_embed_pooled = model(data, return_all_frames=True)
                 text_embed_arr.append(text_embed.cpu())
                 vid_embed_arr.append(vid_embed.cpu())
                 sims_batch = sim_matrix_training(text_embed, vid_embed_pooled, self.pooling_type)
 
-                curr_loss = self.loss(sims_batch, self.model.clip.logit_scale)
+                curr_loss = self.loss(sims_batch, model.clip.logit_scale)
                 total_val_loss += curr_loss.item()
 
                 for v_id in data['video_id']:
@@ -145,9 +151,9 @@ class Trainer(BaseTrainer):
             vid_embeds = torch.stack([vid_embeds_per_video_id[v_id] for v_id in vid_embeds_per_video_id])
 
             # Pool frames for inference once we have all texts and videos
-            self.model.pool_frames.cpu()
-            vid_embeds_pooled = self.model.pool_frames(text_embeds, vid_embeds)
-            self.model.pool_frames.cuda()
+            model.pool_frames.cpu()
+            vid_embeds_pooled = model.pool_frames(text_embeds, vid_embeds)
+            model.pool_frames.cuda()
 
             text_embeds_per_video_id, vid_embeds_pooled_per_video_id = generate_embeds_per_video_id(text_embeds, 
                     vid_embeds_pooled, all_vid_ids, self.pooling_type)

@@ -14,6 +14,9 @@ class Config(ABC):
         self.video_sample_type = args.video_sample_type
         self.input_res = args.input_res
 
+        self.use_ema = args.use_ema
+        self.model_ema_decay = args.model_ema_decay
+
         self.exp_name = args.exp_name
         self.model_path = args.model_path 
         self.output_dir = args.output_dir

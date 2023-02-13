@@ -22,6 +22,10 @@ class AllConfig(Config):
         parser.add_argument('--video_sample_type', default='rand', help="'rand'/'uniform'")
         parser.add_argument('--input_res', type=int, default=224)
 
+        # ema parameters
+        parser.add_argument('--use_ema', action='store_true', default=False)
+        parser.add_argument('--model_ema_decay', type=float, default=0.9999)
+
         # experiment parameters
         parser.add_argument('--exp_name', type=str, required=True, help="Name of the current experiment")
         parser.add_argument('--output_dir', type=str, default='./outputs')
