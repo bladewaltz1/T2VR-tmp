@@ -15,7 +15,7 @@ def sim_matrix_training(text_embeds, vid_embeds_pooled, pooling_type):
     if pooling_type in ['avg', 'subsampled']:
         sims = torch.mm(text_embeds, vid_embeds_pooled.t())
 
-    elif pooling_type in ['topk', 'attention', 'transformer']:
+    else:
         # num_texts x embed_dim x num_vids
         vid_embeds_pooled = vid_embeds_pooled.permute(1,2,0)
         # num_texts x 1 x embed_dim
@@ -36,7 +36,7 @@ def sim_matrix_inference(text_embeds_per_video_id, vid_embeds_pooled_per_video_i
     text_embeds_per_video_id = text_embeds_per_video_id / text_embeds_per_video_id.norm(dim=-1, keepdim=True)
     vid_embeds_pooled_per_video_id = vid_embeds_pooled_per_video_id / vid_embeds_pooled_per_video_id.norm(dim=-1, keepdim=True)
 
-    if pooling_type == 'avg':
+    if pooling_type in ['avg', 'subsampled']:
         # text_embeds_per_video_id -> num_vids x max_text_per_vid x embed_dim
         # vid_embeds_pooled_per_video_id -> num_vids x embed_dim
 
@@ -77,7 +77,7 @@ def generate_embeds_per_video_id(text_embeds, vid_embeds_pooled, all_vid_ids, po
     text_embeds_per_video_id = pad_and_stack_dict_to_tensor(text_embeds_per_video_id,
         text_embeds_per_video_id.keys(), text_embeds.shape[-1])
 
-    if pooling_type == 'avg':
+    if pooling_type in ['avg', 'subsampled']:
         # num_vids x embed_dim
         vid_embeds_pooled_per_video_id = vid_embeds_pooled
 
