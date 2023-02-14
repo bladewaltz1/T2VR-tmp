@@ -295,7 +295,6 @@ class CLIPEncoderLayerPT(nn.Module):
 
         self.nf = config.num_frames
         self.np = config.num_prompts
-        # self.layer_norm_prompt = nn.LayerNorm(self.embed_dim)
 
     def forward(
         self,
@@ -321,10 +320,6 @@ class CLIPEncoderLayerPT(nn.Module):
         # bs * nf, Ls + np, embed_dim
         residual = hidden_states
         hidden_states = self.layer_norm1(hidden_states)
-
-        # hidden_states = torch.cat(
-        #     [self.layer_norm1(hidden_states[:, :Ls, :]), 
-        #      self.layer_norm_prompt(hidden_states[:, Ls:, :])], dim=1)
 
         num_chunks = self.nf // self.np
         hidden_states = hidden_states.reshape(bs, num_chunks, self.np, Ls + self.np, -1)
@@ -1267,6 +1262,7 @@ class PromptCLIP(nn.Module):
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32", config=clip_config)
 
         self.pool_frames = BaselinePooling(config.pooling_type, config)
+        self.pool_frames_test = BaselinePooling(config.pooling_type_test, config)
 
         params_optimizer = list(self.named_parameters())
         self.clip_params = [p for n, p in params_optimizer if "prompt" not in n]
@@ -1275,10 +1271,6 @@ class PromptCLIP(nn.Module):
         nn.init.normal_(self.clip.vision_model.encoder.prompt_embedding, mean=0.0, 
             std=clip_config.vision_config.hidden_size**-0.5 * \
                 clip_config.vision_config.initializer_range)
-
-        # for l in self.clip.vision_model.encoder.layers:
-        #     l.layer_norm_prompt.weight.data.copy_(l.layer_norm1.weight.data)
-        #     l.layer_norm_prompt.bias.data.copy_(l.layer_norm1.bias.data)
 
     def forward(self, data, return_all_frames=False):
         batch_size = data['video'].shape[0]
@@ -1292,8 +1284,11 @@ class PromptCLIP(nn.Module):
         video_features = video_features / video_features.norm(dim=-1, keepdim=True)
         video_features = video_features.reshape(batch_size, -1, video_features.size(-1))
 
-        video_features_pooled = self.pool_frames(text_features, video_features)
-            
+        if self.training:
+            video_features_pooled = self.pool_frames(text_features, video_features)
+        else:
+            video_features_pooled = self.pool_frames_test(text_features, video_features)
+
         if return_all_frames:
             return text_features, video_features, video_features_pooled
 

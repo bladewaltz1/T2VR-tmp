@@ -33,6 +33,11 @@ class BaselinePooling(nn.Module):
             self.pooling_func = self._attention_pooling
             print("Using attention pooling")
 
+        elif pooling_type == 'subsampled':
+            self.pooling_func = self._subsampled_pooling
+            self.num_samples = config.num_samples
+            print("Using subsampled pooling")
+
         else:
             raise NotImplementedError
 
@@ -44,6 +49,19 @@ class BaselinePooling(nn.Module):
             video_embeds_pooled: num_vids x embed_dim
         """
         video_embeds_pooled = video_embeds.mean(dim=1)
+        return video_embeds_pooled
+
+    def _subsampled_pooling(self, text_embeds, video_embeds):
+        """
+        Pooling mean of frames
+
+        Output
+            video_embeds_pooled: num_vids x embed_dim
+        """
+        index = torch.rand(video_embeds.shape[:2]).topk(self.num_samples, dim=1)[1]
+        index = index[:, :, None].repeat(1, 1, video_embeds.shape[2])
+        video_embeds_subsampled = torch.gather(video_embeds, dim=1, index=index)
+        video_embeds_pooled = video_embeds_subsampled.mean(dim=1)
         return video_embeds_pooled
 
     def _topk_pooling(self, text_embeds, video_embeds):

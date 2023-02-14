@@ -40,6 +40,8 @@ class Config(ABC):
         self.warmup_proportion = args.warmup_proportion
 
         self.pooling_type = args.pooling_type
+        self.pooling_type_test = args.pooling_type_test
+        self.num_samples = args.num_samples
         self.k = args.k
         self.attention_temperature = args.attention_temperature
         self.num_mha_heads = args.num_mha_heads

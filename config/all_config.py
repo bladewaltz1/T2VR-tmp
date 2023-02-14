@@ -51,7 +51,9 @@ class AllConfig(Config):
         parser.add_argument('--warmup_proportion', type=float, default=0.1, help='Warmup proportion for learning rate schedule')
 
         # frame pooling parameters
-        parser.add_argument('--pooling_type', type=str)
+        parser.add_argument('--pooling_type', type=str, default='avg')
+        parser.add_argument('--pooling_type_test', type=str, default='avg')
+        parser.add_argument('--num_samples', type=int, default=2)
         parser.add_argument('--k', type=int, default=-1, help='K value for topk pooling')
         parser.add_argument('--attention_temperature', type=float, default=0.01, help='Temperature for softmax (used in attention pooling only)')
         parser.add_argument('--num_mha_heads', type=int, default=1, help='Number of parallel heads in multi-headed attention')
