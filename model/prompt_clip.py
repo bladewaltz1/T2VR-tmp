@@ -1276,6 +1276,10 @@ class PromptCLIP(nn.Module):
             std=clip_config.vision_config.hidden_size**-0.5 * \
                 clip_config.vision_config.initializer_range)
 
+        # for l in self.clip.vision_model.encoder.layers:
+        #     l.layer_norm_prompt.weight.data.copy_(l.layer_norm1.weight.data)
+        #     l.layer_norm_prompt.bias.data.copy_(l.layer_norm1.bias.data)
+
     def forward(self, data, return_all_frames=False):
         batch_size = data['video'].shape[0]
         text_data = data['text']
