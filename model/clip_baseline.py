@@ -10,6 +10,7 @@ class CLIPBaseline(nn.Module):
         super(CLIPBaseline, self).__init__()
         self.config = config
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+        assert config.pooling_type == config.pooling_type_test
         self.pool_frames = BaselinePooling(config.pooling_type, config)
 
         params_optimizer = list(self.named_parameters())
@@ -29,7 +30,7 @@ class CLIPBaseline(nn.Module):
         video_features = video_features.reshape(batch_size, self.config.num_frames, -1)
 
         video_features_pooled = self.pool_frames(text_features, video_features)
-            
+
         if return_all_frames:
             return text_features, video_features, video_features_pooled
 

@@ -26,6 +26,7 @@ class Trainer(BaseTrainer):
         self.tokenizer = tokenizer
 
         self.pooling_type = config.pooling_type
+        self.pooling_type_test = config.pooling_type_test
         self.window_metric = defaultdict(lambda: deque(maxlen=config.eval_window_size))
         self.best_window = -1.0
         self.best = -1.0
@@ -131,7 +132,7 @@ class Trainer(BaseTrainer):
                 text_embed, vid_embed, vid_embed_pooled = model(data, return_all_frames=True)
                 text_embed_arr.append(text_embed.cpu())
                 vid_embed_arr.append(vid_embed.cpu())
-                sims_batch = sim_matrix_training(text_embed, vid_embed_pooled, self.pooling_type)
+                sims_batch = sim_matrix_training(text_embed, vid_embed_pooled, self.pooling_type_test)
 
                 curr_loss = self.loss(sims_batch, model.clip.logit_scale)
                 total_val_loss += curr_loss.item()
@@ -156,9 +157,9 @@ class Trainer(BaseTrainer):
             model.pool_frames.cuda()
 
             text_embeds_per_video_id, vid_embeds_pooled_per_video_id = generate_embeds_per_video_id(text_embeds, 
-                    vid_embeds_pooled, all_vid_ids, self.pooling_type)
+                    vid_embeds_pooled, all_vid_ids, self.pooling_type_test)
 
-            sims = sim_matrix_inference(text_embeds_per_video_id, vid_embeds_pooled_per_video_id, self.pooling_type)
+            sims = sim_matrix_inference(text_embeds_per_video_id, vid_embeds_pooled_per_video_id, self.pooling_type_test)
 
             total_val_loss = total_val_loss / len(self.valid_data_loader)
 

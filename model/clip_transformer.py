@@ -11,6 +11,7 @@ class CLIPTransformer(nn.Module):
         self.config = config
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
         config.pooling_type = 'transformer'
+        assert config.pooling_type == config.pooling_type_test
         self.pool_frames = Transformer(config)
 
         params_optimizer = list(self.named_parameters())
