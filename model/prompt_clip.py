@@ -295,6 +295,7 @@ class CLIPEncoderLayerPT(nn.Module):
 
         self.nf = config.num_frames
         self.np = config.num_prompts
+        # self.layer_norm_prompt = nn.LayerNorm(self.embed_dim)
 
     def forward(
         self,
@@ -320,6 +321,10 @@ class CLIPEncoderLayerPT(nn.Module):
         # bs * nf, Ls + np, embed_dim
         residual = hidden_states
         hidden_states = self.layer_norm1(hidden_states)
+
+        # hidden_states = torch.cat(
+        #     [self.layer_norm1(hidden_states[:, :Ls, :]), 
+        #      self.layer_norm_prompt(hidden_states[:, Ls:, :])], dim=1)
 
         num_chunks = self.nf // self.np
         hidden_states = hidden_states.reshape(bs, num_chunks, self.np, Ls + self.np, -1)
