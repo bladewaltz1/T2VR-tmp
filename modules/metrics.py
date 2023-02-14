@@ -12,10 +12,10 @@ def sim_matrix_training(text_embeds, vid_embeds_pooled, pooling_type):
     text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
     vid_embeds_pooled = vid_embeds_pooled / vid_embeds_pooled.norm(dim=-1, keepdim=True)
 
-    if pooling_type == 'avg':
+    if pooling_type in ['avg', 'subsampled']:
         sims = torch.mm(text_embeds, vid_embeds_pooled.t())
 
-    else:
+    elif pooling_type in ['topk', 'attention', 'transformer']:
         # num_texts x embed_dim x num_vids
         vid_embeds_pooled = vid_embeds_pooled.permute(1,2,0)
         # num_texts x 1 x embed_dim
