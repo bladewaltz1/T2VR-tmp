@@ -59,7 +59,7 @@ class BaselinePooling(nn.Module):
             video_embeds_pooled: num_vids x embed_dim
         """
         index = torch.rand(video_embeds.shape[:2]).topk(self.num_samples, dim=1)[1]
-        index = index[:, :, None].repeat(1, 1, video_embeds.shape[2])
+        index = index.to(video_embeds.device)[:, :, None].repeat(1, 1, video_embeds.shape[2])
         video_embeds_subsampled = torch.gather(video_embeds, dim=1, index=index)
         video_embeds_pooled = video_embeds_subsampled.mean(dim=1)
         return video_embeds_pooled
