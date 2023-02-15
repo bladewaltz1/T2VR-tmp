@@ -12,6 +12,7 @@ class CLIPBaseline(nn.Module):
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
         assert config.pooling_type == config.pooling_type_test
         self.pool_frames = BaselinePooling(config.pooling_type, config)
+        self.pool_frames_test = self.pool_frames
 
         params_optimizer = list(self.named_parameters())
         self.clip_params = [p for n, p in params_optimizer if "clip." in n]

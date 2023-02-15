@@ -13,6 +13,7 @@ class CLIPTransformer(nn.Module):
         config.pooling_type = 'transformer'
         assert config.pooling_type == config.pooling_type_test
         self.pool_frames = Transformer(config)
+        self.pool_frames_test = self.pool_frames
 
         params_optimizer = list(self.named_parameters())
         self.clip_params = [p for n, p in params_optimizer if "clip." in n]
