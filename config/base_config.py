@@ -12,6 +12,7 @@ class Config(ABC):
         self.num_test_frames = args.num_test_frames
         self.num_prompts = args.num_prompts
         self.video_sample_type = args.video_sample_type
+        self.video_sample_type_test = args.video_sample_type_test
         self.input_res = args.input_res
 
         self.use_ema = args.use_ema

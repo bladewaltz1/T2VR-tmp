@@ -20,6 +20,7 @@ class AllConfig(Config):
         parser.add_argument('--num_test_frames', type=int, default=12)
         parser.add_argument('--num_prompts', type=int, default=6)
         parser.add_argument('--video_sample_type', default='rand', help="'rand'/'uniform'")
+        parser.add_argument('--video_sample_type_test', default='uniform', help="'rand'/'uniform'")
         parser.add_argument('--input_res', type=int, default=224)
 
         # ema parameters
