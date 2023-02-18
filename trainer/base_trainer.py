@@ -47,7 +47,7 @@ class BaseTrainer:
         raise NotImplementedError
 
     @abstractmethod
-    def _valid_epoch_step(self, epoch, step, num_steps):
+    def _valid_epoch_step(self, model, epoch, step, num_steps):
         """
         Training logic for a step in an epoch
         :param epoch: Current epoch number
@@ -62,8 +62,8 @@ class BaseTrainer:
             if epoch % self.config.save_every == 0:
                     self._save_checkpoint(epoch, save_best=False)
 
-    def validate(self):
-        self._valid_epoch_step(0,0,0)
+    def validate(self, model):
+        self._valid_epoch_step(model, 0,0,0)
 
     def _prepare_device(self):
         """
@@ -107,12 +107,9 @@ class BaseTrainer:
         print("Loading checkpoint: {} ...".format(checkpoint_path))
         checkpoint = torch.load(checkpoint_path)
         self.start_epoch = checkpoint['epoch'] + 1 if 'epoch' in checkpoint else 1
+        self.model.load_state_dict(checkpoint['state_dict'])
         if self.use_ema:
-            state_dict = checkpoint['state_dict_ema']
-        else:
-            state_dict = checkpoint['state_dict']
-
-        self.model.load_state_dict(state_dict)
+            self.model_ema.module.load_state_dict(checkpoint['state_dict_ema'])
 
         if self.optimizer is not None:
             self.optimizer.load_state_dict(checkpoint['optimizer'])

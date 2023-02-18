@@ -923,7 +923,8 @@ class CLIPVisionTransformer(nn.Module):
         self.post_layernorm = nn.LayerNorm(embed_dim)
 
         self.np = config.num_prompts
-        self.prompt_proj = nn.Linear(embed_dim, embed_dim)
+        self.nf = config.num_frames
+        self.attn = nn.MultiheadAttention(embed_dim, config.num_attention_heads)
 
     @add_start_docstrings_to_model_forward(CLIP_VISION_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=BaseModelOutputWithPooling, config_class=CLIPVisionConfig)
@@ -959,8 +960,13 @@ class CLIPVisionTransformer(nn.Module):
 
         last_hidden_state = encoder_outputs[0]
         pooled_output = last_hidden_state[:, 0, :]
-        prompt_output = last_hidden_state[:, -self.np:, :].mean(dim=1)
-        pooled_output = pooled_output + self.prompt_proj(prompt_output)
+
+        bs = pooled_output.size(0) // self.nf
+        D = pooled_output.size(-1)
+        q = pooled_output.reshape(bs, self.nf, D).transpose(0, 1)
+        kv = last_hidden_state[:, -self.np:, :].reshape(bs, self.nf * self.np, D).transpose(0, 1)
+        attn_output = self.attn(q, kv, kv)[0]
+        pooled_output = (q + attn_output).transpose(0, 1).reshape(bs * self.nf, D)
         pooled_output = self.post_layernorm(pooled_output)
 
         if not return_dict:
@@ -1276,8 +1282,8 @@ class PromptCLIP(nn.Module):
         nn.init.normal_(self.clip.vision_model.encoder.prompt_embedding, mean=0.0, 
             std=clip_config.vision_config.hidden_size**-0.5 * \
                 clip_config.vision_config.initializer_range)
-        nn.init.zeros_(self.clip.vision_model.prompt_proj.weight.data)
-        nn.init.zeros_(self.clip.vision_model.prompt_proj.bias.data)
+        nn.init.zeros_(self.clip.vision_model.attn.out_proj.weight.data)
+        nn.init.zeros_(self.clip.vision_model.attn.out_proj.bias.data)
 
     def forward(self, data, return_all_frames=False):
         batch_size = data['video'].shape[0]

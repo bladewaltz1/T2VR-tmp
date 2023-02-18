@@ -51,15 +51,18 @@ def main():
                       valid_data_loader=test_data_loader,
                       lr_scheduler=None,
                       writer=writer,
-                      tokenizer=tokenizer)
+                      tokenizer=tokenizer,
+                      use_ema=config.use_ema)
 
     if config.load_epoch is not None:
         if config.load_epoch > 0:
             trainer.load_checkpoint("checkpoint-epoch{}.pth".format(config.load_epoch))
         else:
-            trainer.load_checkpoint("model_best.pth")    
-    trainer.validate()
-
+            trainer.load_checkpoint("model_best.pth")
+    if config.use_ema:
+        trainer.validate(trainer.model_ema.module)
+    else:
+        trainer.validate(trainer.model)
 
 if __name__ == '__main__':
     main()

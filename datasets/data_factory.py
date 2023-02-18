@@ -1,4 +1,5 @@
 from torch.utils.data import DataLoader
+from torch.utils.data._utils.collate import default_collate
 
 from config.base_config import Config
 from datasets.model_transforms import init_transform_dict
@@ -18,7 +19,8 @@ class DataFactory:
             if split_type == 'train':
                 dataset = MSRVTTDataset(config, split_type, train_img_tfms)
                 return DataLoader(dataset, batch_size=config.batch_size,
-                           shuffle=True, num_workers=config.num_workers)
+                           shuffle=True, num_workers=config.num_workers,
+                           collate_fn=collate_fn)
             else:
                 dataset = MSRVTTDataset(config, split_type, test_img_tfms)
                 return DataLoader(dataset, batch_size=config.batch_size,
@@ -28,17 +30,19 @@ class DataFactory:
             if split_type == 'train':
                 dataset = MSVDDataset(config, split_type, train_img_tfms)
                 return DataLoader(dataset, batch_size=config.batch_size,
-                        shuffle=True, num_workers=config.num_workers)
+                            shuffle=True, num_workers=config.num_workers,
+                            collate_fn=collate_fn)
             else:
                 dataset = MSVDDataset(config, split_type, test_img_tfms)
                 return DataLoader(dataset, batch_size=config.batch_size,
-                        shuffle=False, num_workers=config.num_workers)
+                            shuffle=False, num_workers=config.num_workers)
 
         elif config.dataset_name == 'LSMDC':
             if split_type == 'train':
                 dataset = LSMDCDataset(config, split_type, train_img_tfms)
                 return DataLoader(dataset, batch_size=config.batch_size,
-                            shuffle=True, num_workers=config.num_workers)
+                            shuffle=True, num_workers=config.num_workers,
+                            collate_fn=collate_fn)
             else:
                 dataset = LSMDCDataset(config, split_type, test_img_tfms)
                 return DataLoader(dataset, batch_size=config.batch_size,
@@ -46,3 +50,18 @@ class DataFactory:
 
         else:
             raise NotImplementedError
+
+
+def collate_fn(batch):
+    video_ids = []
+    new_batch = []
+    for item in batch:
+        video_id = item['video_id']
+        if video_id not in video_ids:
+            video_ids.append(video_id)
+            new_batch.append({
+                'video_id': video_id, 
+                'video': item['video'], 
+                'text': item['text']
+            })
+    return default_collate(new_batch)
