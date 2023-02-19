@@ -4,7 +4,6 @@ import random
 import torch
 import numpy as np
 from torch.utils.tensorboard.writer import SummaryWriter
-from transformers import CLIPTokenizer
 from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 
 from config.all_config import AllConfig
@@ -34,9 +33,6 @@ def main():
         random.seed(config.seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-
-    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32", 
-                                              TOKENIZERS_PARALLELISM=False)
 
     train_data_loader = DataFactory.get_data_loader(config, split_type='train')
     valid_data_loader  = DataFactory.get_data_loader(config, split_type='test')
@@ -68,7 +64,6 @@ def main():
                       valid_data_loader=valid_data_loader,
                       lr_scheduler=scheduler,
                       writer=writer,
-                      tokenizer=tokenizer,
                       use_ema=config.use_ema)
 
     trainer.train()

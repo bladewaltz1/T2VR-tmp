@@ -1272,12 +1272,40 @@ class PromptCLIP(nn.Module):
         })
         self.clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32", config=clip_config)
 
+        if 'caption' in self.config.loss:
+            self.caption_prenorm = nn.LayerNorm(
+                clip_config.text_config.hidden_size
+            )
+            self.caption_transformer = nn.TransformerDecoder(
+                nn.TransformerDecoderLayer(
+                    d_model=clip_config.text_config.hidden_size,
+                    nhead=clip_config.text_config.num_attention_heads,
+                    dim_feedforward=clip_config.text_config.intermediate_size,
+                    dropout=clip_config.text_config.dropout
+                ),
+                num_layers=config.num_captioner_layers,
+                norm=nn.LayerNorm(clip_config.text_config.hidden_size)
+            )
+            self.caption_head = nn.Linear(
+                clip_config.text_config.hidden_size,
+                clip_config.text_config.vocab_size
+            )
+
+            self.caption_head.weight.data.copy_(
+                self.clip.text_model.embeddings.token_embedding.weight.data
+            )
+            nn.init.zeros_(self.caption_head.bias.data)
+
         self.pool_frames = BaselinePooling(config.pooling_type, config)
         self.pool_frames_test = BaselinePooling(config.pooling_type_test, config)
 
-        params_optimizer = list(self.named_parameters())
-        self.clip_params = [p for n, p in params_optimizer if "prompt" not in n]
-        self.noclip_params = [p for n, p in params_optimizer if "prompt" in n]
+        self.clip_params = []
+        self.noclip_params = []
+        for name, param in self.named_parameters():
+            if 'prompt' in name or 'caption' in name:
+                self.noclip_params.append(param)
+            else:
+                self.clip_params.append(param)
 
         nn.init.normal_(self.clip.vision_model.encoder.prompt_embedding, mean=0.0, 
             std=clip_config.vision_config.hidden_size**-0.5 * \
@@ -1285,24 +1313,53 @@ class PromptCLIP(nn.Module):
         nn.init.zeros_(self.clip.vision_model.attn.out_proj.weight.data)
         nn.init.zeros_(self.clip.vision_model.attn.out_proj.bias.data)
 
+    def forward_captioner(self, video_features, tokens):
+        tokens = tokens.transpose(0, 1)
+        video_features = video_features.transpose(0, 1)
+
+        with torch.no_grad():
+            token_embeds = self.clip.text_model.embeddings(tokens)
+        token_embeds = self.caption_prenorm(token_embeds)
+
+        attn_mask = torch.empty(tokens.size(0), tokens.size(0))
+        attn_mask.fill_(float("-inf"))
+        attn_mask.triu_(1)
+        attn_mask = attn_mask.to(token_embeds.device)
+
+        pred_embeds = self.caption_transformer(
+            token_embeds, video_features, tgt_mask=attn_mask)
+
+        pred_logits = self.caption_head(pred_embeds)
+        return pred_logits.transpose(0, 1)
+
     def forward(self, data, return_all_frames=False):
-        batch_size = data['video'].shape[0]
+        bs = data['video'].shape[0]
         text_data = data['text']
         video_data = data['video']
         video_data = video_data.reshape(-1, 3, self.config.input_res, self.config.input_res)
 
         text_features = self.clip.get_text_features(**text_data)
-        video_features = self.clip.get_image_features(video_data)
+        video_features_ = self.clip.get_image_features(video_data)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-        video_features = video_features / video_features.norm(dim=-1, keepdim=True)
-        video_features = video_features.reshape(batch_size, -1, video_features.size(-1))
+        video_features = video_features_ / video_features_.norm(dim=-1, keepdim=True)
+        video_features = video_features.reshape(bs, -1, video_features.size(-1))
+
+        output = {'text_features': text_features}
 
         if self.training:
             video_features_pooled = self.pool_frames(text_features, video_features)
         else:
             video_features_pooled = self.pool_frames_test(text_features, video_features)
+        output['video_features_pooled'] = video_features_pooled
 
         if return_all_frames:
-            return text_features, video_features, video_features_pooled
+            output['video_features'] = video_features
 
-        return text_features, video_features_pooled
+        if 'caption' in self.config.loss and self.training:
+            video_features_ = video_features_.reshape(bs, -1, video_features_.size(-1))
+            pred_logits = self.forward_captioner(video_features_, 
+                                                 text_data['input_ids'][:, :-1])
+            output['pred_logits'] = pred_logits
+            output['input_ids'] = text_data['input_ids']
+
+        return output

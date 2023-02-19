@@ -25,7 +25,7 @@ class BaseTrainer:
         else:
             self.model_ema = None
 
-        self.loss = loss.to(self.device)
+        self.loss = {k: v.to(self.device) for k, v in loss.items()}
         self.metrics = metrics
         self.optimizer = optimizer
         self.start_epoch = 1

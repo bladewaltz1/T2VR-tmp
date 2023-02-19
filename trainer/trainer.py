@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from config.base_config import Config
 from modules.metrics import sim_matrix_training, sim_matrix_inference, generate_embeds_per_video_id
+from modules.tokenizer import clip_tokenizer
 from trainer.base_trainer import BaseTrainer
 
 
@@ -17,13 +18,12 @@ class Trainer(BaseTrainer):
     """
 
     def __init__(self, model, loss, metrics, optimizer, config: Config, train_data_loader, 
-                 valid_data_loader, tokenizer, lr_scheduler=None, writer=None, use_ema=False):
+                 valid_data_loader, lr_scheduler=None, writer=None, use_ema=False):
 
         super().__init__(model, loss, metrics, optimizer, config, writer, use_ema)
         self.train_data_loader = train_data_loader
         self.valid_data_loader = valid_data_loader
         self.lr_scheduler = lr_scheduler
-        self.tokenizer = tokenizer
 
         self.pooling_type = config.pooling_type
         self.pooling_type_test = config.pooling_type_test
@@ -44,9 +44,8 @@ class Trainer(BaseTrainer):
 
         for batch_idx, data in enumerate(self.train_data_loader):
             # then assume we must tokenize the input, e.g. its a string
-            if self.tokenizer is not None:
-                data['text'] = self.tokenizer(data['text'], return_tensors='pt', padding=True,
-                                              truncation=True)
+            data['text'] = clip_tokenizer(data['text'], return_tensors='pt', padding=True,
+                                          truncation=True)
             if isinstance(data['text'], torch.Tensor):
                 data['text'] = data['text'].to(self.device)
             else:
@@ -54,11 +53,18 @@ class Trainer(BaseTrainer):
 
             data['video'] = data['video'].to(self.device)
 
-            text_embeds, video_embeds_pooled = self.model(data)
-            output = sim_matrix_training(text_embeds, video_embeds_pooled, self.pooling_type)
+            model_output = self.model(data)
+            text_embeds = model_output['text_features']
+            video_embeds_pooled = model_output['video_features_pooled']
+            sims = sim_matrix_training(text_embeds, video_embeds_pooled, self.pooling_type)
+            loss = self.loss['clip'](sims, self.model.clip.logit_scale)
 
-            loss = self.loss(output, self.model.clip.logit_scale)
-            loss.backward()
+            if 'caption' in self.loss.keys():
+                pred_logits = model_output['pred_logits']
+                input_ids = model_output['input_ids']
+                loss_caption = self.loss['caption'](pred_logits, input_ids)
+            loss_all = loss + loss_caption
+            loss_all.backward()
 
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
@@ -74,15 +80,17 @@ class Trainer(BaseTrainer):
             self.global_step += 1
             if self.writer is not None:
                 self.writer.add_scalar('train/loss_train', loss.detach().item(), self.global_step)
+                self.writer.add_scalar('train/loss_cap', loss_caption.detach().item(), self.global_step)
 
             total_loss += loss.detach().item()
 
             if batch_idx % self.log_step == 0:
-                print('Train Epoch: {} dl: {}/{} Loss: {:.6f}'.format(
+                print('Train Epoch: {} dl: {}/{} Loss Ctr: {:.6f} Loss Cap: {:.6f}'.format(
                     epoch,
                     batch_idx,
                     num_steps-1,
-                    loss.detach().item()))
+                    loss.detach().item(),
+                    loss_caption.detach().item()))
 
             if batch_idx in eval_steps:
                 if self.use_ema:
@@ -120,8 +128,8 @@ class Trainer(BaseTrainer):
 
         with torch.no_grad():
             for _, data in tqdm(enumerate(self.valid_data_loader)):
-                if self.tokenizer is not None:
-                    data['text'] = self.tokenizer(data['text'], return_tensors='pt', padding=True, truncation=True)
+                data['text'] = clip_tokenizer(data['text'], return_tensors='pt', padding=True, 
+                                              truncation=True)
                 if isinstance(data['text'], torch.Tensor):
                     data['text'] = data['text'].to(self.device)
                 else:
@@ -129,12 +137,16 @@ class Trainer(BaseTrainer):
 
                 data['video'] = data['video'].to(self.device)
 
-                text_embed, vid_embed, vid_embed_pooled = model(data, return_all_frames=True)
+                model_output = model(data, return_all_frames=True)
+                text_embed = model_output['text_features']
+                vid_embed = model_output['video_features']
+                vid_embed_pooled = model_output['video_features_pooled']
+
                 text_embed_arr.append(text_embed.cpu())
                 vid_embed_arr.append(vid_embed.cpu())
                 sims_batch = sim_matrix_training(text_embed, vid_embed_pooled, self.pooling_type_test)
 
-                curr_loss = self.loss(sims_batch, model.clip.logit_scale)
+                curr_loss = self.loss['clip'](sims_batch, model.clip.logit_scale)
                 total_val_loss += curr_loss.item()
 
                 for v_id in data['video_id']:

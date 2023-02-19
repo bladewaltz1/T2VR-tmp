@@ -3,7 +3,6 @@ import random
 
 import torch
 import numpy as np
-from transformers import CLIPTokenizer
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from config.all_config import AllConfig
@@ -30,9 +29,6 @@ def main():
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32", 
-                                              TOKENIZERS_PARALLELISM=False)
-
     test_data_loader  = DataFactory.get_data_loader(config, split_type='test')
     model = ModelFactory.get_model(config)
 
@@ -51,7 +47,6 @@ def main():
                       valid_data_loader=test_data_loader,
                       lr_scheduler=None,
                       writer=writer,
-                      tokenizer=tokenizer,
                       use_ema=config.use_ema)
 
     if config.load_epoch is not None:

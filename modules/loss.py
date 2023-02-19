@@ -4,6 +4,8 @@ import torch.nn.functional as F
 
 from config.base_config import Config
 
+from .tokenizer import clip_tokenizer
+
 
 class CLIPLoss(nn.Module):
     def __init__(self):
@@ -29,10 +31,35 @@ class CLIPLoss(nn.Module):
         return (t2v_loss + v2t_loss) / 2.0
 
 
+class CaptionLoss(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        weight = torch.ones(clip_tokenizer.vocab_size)
+        frequent_words = "in on of to this that which image picture I we can see a an the \
+            here there is are . , <|endoftext|>"
+        frequent_ids = clip_tokenizer.convert_tokens_to_ids(
+            clip_tokenizer.tokenize(frequent_words)
+        )
+        weight[frequent_ids] = config.frequent_word_weight
+        self.register_buffer('weight', weight)
+        self.mult = config.caption_loss_mult
+
+    def forward(self, pred_logits, input_ids):
+        mask = input_ids[:, :-1] != clip_tokenizer.eos_token_id
+        pred_logits = pred_logits[mask]
+        target_ids = input_ids[:, 1:][mask]
+        return F.cross_entropy(pred_logits, 
+                               target_ids, 
+                               weight=self.weight) * self.mult
+
+
 class LossFactory:
     @staticmethod
     def get_loss(config: Config):
         if config.loss == 'clip':
-            return CLIPLoss()
+            return {'clip': CLIPLoss()}
+        elif config.loss == 'clip+caption':
+            return {'clip': CLIPLoss(),
+                    'caption': CaptionLoss(config)}
         else:
-            raise NotImplemented
+            raise NotImplementedError

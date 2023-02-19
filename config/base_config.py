@@ -33,6 +33,10 @@ class Config(ABC):
         self.embed_dim = args.embed_dim
 
         self.loss = args.loss
+        self.num_captioner_layers = args.num_captioner_layers
+        self.frequent_word_weight = args.frequent_word_weight
+        self.caption_loss_mult = args.caption_loss_mult
+
         self.clip_lr = args.clip_lr
         self.noclip_lr = args.noclip_lr
         self.batch_size = args.batch_size
