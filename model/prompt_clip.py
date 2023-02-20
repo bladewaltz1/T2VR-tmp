@@ -1314,14 +1314,14 @@ class PromptCLIP(nn.Module):
         nn.init.zeros_(self.clip.vision_model.attn.out_proj.bias.data)
 
     def forward_captioner(self, video_features, tokens):
-        tokens = tokens.transpose(0, 1)
         video_features = video_features.transpose(0, 1)
-
         with torch.no_grad():
             token_embeds = self.clip.text_model.embeddings(tokens)
+        token_embeds = token_embeds.transpose(0, 1)
+
         token_embeds = self.caption_prenorm(token_embeds)
 
-        attn_mask = torch.empty(tokens.size(0), tokens.size(0))
+        attn_mask = torch.empty(tokens.size(1), tokens.size(1))
         attn_mask.fill_(float("-inf"))
         attn_mask.triu_(1)
         attn_mask = attn_mask.to(token_embeds.device)
