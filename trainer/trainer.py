@@ -61,8 +61,8 @@ class Trainer(BaseTrainer):
 
             if 'caption' in self.loss.keys():
                 pred_logits = model_output['pred_logits']
-                input_ids = model_output['input_ids']
-                loss_caption = self.loss['caption'](pred_logits, input_ids)
+                target_ids = model_output['target_ids']
+                loss_caption = self.loss['caption'](pred_logits, target_ids)
             loss_all = loss + loss_caption
             loss_all.backward()
 

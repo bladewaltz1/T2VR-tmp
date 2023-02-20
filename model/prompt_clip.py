@@ -1258,7 +1258,7 @@ class CLIPModel(CLIPPreTrainedModel):
 
 from config.base_config import Config
 from modules.baseline_pooling import BaselinePooling
-
+from modules.tokenizer import clip_tokenizer
 
 class PromptCLIP(nn.Module):
     def __init__(self, config: Config):
@@ -1291,10 +1291,21 @@ class PromptCLIP(nn.Module):
                 clip_config.text_config.vocab_size
             )
 
-            self.caption_head.weight.data.copy_(
-                self.clip.text_model.embeddings.token_embedding.weight.data
+            self.mask_embeddings = nn.Parameter(torch.randn(clip_config.text_config.hidden_size))
+            self.position_embeddings = nn.Parameter(
+                torch.randn(clip_config.text_config.max_position_embeddings, 
+                            clip_config.text_config.hidden_size)
             )
+
+            self.caption_head.weight.data.copy_(
+                self.clip.text_model.embeddings.token_embedding.weight.data)
             nn.init.zeros_(self.caption_head.bias.data)
+            nn.init.normal_(self.mask_embeddings, mean=0.0, 
+                std=clip_config.text_config.hidden_size**-0.5 * \
+                    clip_config.text_config.initializer_range)
+            self.position_embeddings.data.copy_(
+                self.clip.text_model.embeddings.position_embedding.weight.data
+            )
 
         self.pool_frames = BaselinePooling(config.pooling_type, config)
         self.pool_frames_test = BaselinePooling(config.pooling_type_test, config)
@@ -1313,24 +1324,23 @@ class PromptCLIP(nn.Module):
         nn.init.zeros_(self.clip.vision_model.attn.out_proj.weight.data)
         nn.init.zeros_(self.clip.vision_model.attn.out_proj.bias.data)
 
-    def forward_captioner(self, video_features, tokens):
-        tokens = tokens.transpose(0, 1)
+    def forward_captioner(self, video_features, tokens, mask):
         video_features = video_features.transpose(0, 1)
+        pad_mask = tokens == clip_tokenizer.eos_token_id # (bs, ls), 1 for pad, 0 for unpad
+        bs, ls = tokens.shape
+        mask_embeddings = self.mask_embeddings[None, :] + self.position_embeddings[:ls, :]
 
         with torch.no_grad():
             token_embeds = self.clip.text_model.embeddings(tokens)
+        token_embeds[mask] = mask_embeddings[None, :, :].repeat(bs, 1, 1)[mask]
+        token_embeds = token_embeds.transpose(0, 1)
         token_embeds = self.caption_prenorm(token_embeds)
 
-        attn_mask = torch.empty(tokens.size(0), tokens.size(0))
-        attn_mask.fill_(float("-inf"))
-        attn_mask.triu_(1)
-        attn_mask = attn_mask.to(token_embeds.device)
-
         pred_embeds = self.caption_transformer(
-            token_embeds, video_features, tgt_mask=attn_mask)
+            token_embeds, video_features, tgt_key_padding_mask=pad_mask)
 
-        pred_logits = self.caption_head(pred_embeds)
-        return pred_logits.transpose(0, 1)
+        pred_logits = self.caption_head(pred_embeds.transpose(0, 1)[mask])
+        return pred_logits
 
     def forward(self, data, return_all_frames=False):
         bs = data['video'].shape[0]
@@ -1356,10 +1366,16 @@ class PromptCLIP(nn.Module):
             output['video_features'] = video_features
 
         if 'caption' in self.config.loss and self.training:
+            mask = data['mask'].to(video_data.device)
+            ls = text_data['input_ids'].size(1) - 2
+            # (bs, ls), 1 for mask, 0 for unmask
+            mask = mask[:, :ls]
+
             video_features_ = video_features_.reshape(bs, -1, video_features_.size(-1))
             pred_logits = self.forward_captioner(video_features_, 
-                                                 text_data['input_ids'][:, :-1])
+                                                 text_data['input_ids'][:, 1:-1],
+                                                 mask)
             output['pred_logits'] = pred_logits
-            output['input_ids'] = text_data['input_ids']
+            output['target_ids'] = text_data['input_ids'][:, 1:-1][mask]
 
         return output

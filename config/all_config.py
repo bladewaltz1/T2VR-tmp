@@ -47,6 +47,8 @@ class AllConfig(Config):
         parser.add_argument('--num_captioner_layers', type=int, default=2)
         parser.add_argument('--frequent_word_weight', type=float, default=0.25)
         parser.add_argument('--caption_loss_mult', type=float, default=0.5)
+        parser.add_argument('--mask_ratio_freq', type=float, default=0.6)
+        parser.add_argument('--mask_ratio', type=float, default=0.8)
 
         parser.add_argument('--clip_lr', type=float, default=1e-6, help='Learning rate used for CLIP params')
         parser.add_argument('--noclip_lr', type=float, default=1e-5, help='Learning rate used for new params')

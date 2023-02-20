@@ -3,8 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from config.base_config import Config
-
-from .tokenizer import clip_tokenizer
+from .tokenizer import clip_tokenizer, frequent_ids
 
 
 class CLIPLoss(nn.Module):
@@ -35,19 +34,11 @@ class CaptionLoss(nn.Module):
     def __init__(self, config):
         super().__init__()
         weight = torch.ones(clip_tokenizer.vocab_size)
-        frequent_words = "in on of to this that which image picture I we can see a an the \
-            here there is are . , <|endoftext|>"
-        frequent_ids = clip_tokenizer.convert_tokens_to_ids(
-            clip_tokenizer.tokenize(frequent_words)
-        )
         weight[frequent_ids] = config.frequent_word_weight
         self.register_buffer('weight', weight)
         self.mult = config.caption_loss_mult
 
-    def forward(self, pred_logits, input_ids):
-        mask = input_ids[:, :-1] != clip_tokenizer.eos_token_id
-        pred_logits = pred_logits[mask]
-        target_ids = input_ids[:, 1:][mask]
+    def forward(self, pred_logits, target_ids):
         return F.cross_entropy(pred_logits, 
                                target_ids, 
                                weight=self.weight) * self.mult

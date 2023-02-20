@@ -1,10 +1,15 @@
 import os
-import pandas as pd
+import random
 from collections import defaultdict
-from modules.basic_utils import load_json
+
+import pandas as pd
+import torch
 from torch.utils.data import Dataset
+
 from config.base_config import Config
 from datasets.video_capture import VideoCapture
+from modules.basic_utils import load_json
+from modules.tokenizer import clip_tokenizer, frequent_ids
 
 
 class MSRVTTDataset(Dataset):
@@ -14,13 +19,14 @@ class MSRVTTDataset(Dataset):
         split_type: 'train'/'test'
         img_transforms: Composition of transforms
     """
-    def __init__(self, config: Config, split_type = 'train', img_transforms=None):
+    def __init__(self, config: Config, split_type = 'train', img_transforms=None, max_len=77):
         self.config = config
         self.videos_dir = config.videos_dir
         self.img_transforms = img_transforms
         self.split_type = split_type
         db_file = 'data/MSRVTT/MSRVTT_data.json'
         test_csv = 'data/MSRVTT/MSRVTT_JSFUSION_test.csv'
+        self.max_len = max_len
 
         if config.msrvtt_train_file == '7k':
             train_csv = 'data/MSRVTT/MSRVTT_train.7k.csv'
@@ -53,12 +59,26 @@ class MSRVTTDataset(Dataset):
         if self.img_transforms is not None:
             imgs = self.img_transforms(imgs)
 
-        return {
-            'video_id': video_id,
-            'video': imgs,
-            'text': caption,
-        }
-    
+        output = {'video_id': video_id, 'video': imgs, 'text': caption}
+
+        if 'caption' in self.config.loss:
+            masked_tokens = clip_tokenizer(caption)
+            masked_tokens = masked_tokens['input_ids'][1:-1]
+            selected_idx = []
+            for i in range(len(masked_tokens)):
+                if masked_tokens[i] not in frequent_ids:
+                    if random.uniform(0, 1) < self.config.mask_ratio:
+                        selected_idx.append(i)
+                else:
+                    if random.uniform(0, 1) < self.config.mask_ratio_freq:
+                        selected_idx.append(i)
+
+            mask = torch.zeros(self.max_len)
+            mask[selected_idx] = 1
+            output['mask'] = mask.bool()
+
+        return output
+
     def __len__(self):
         if self.split_type == 'train':
             return len(self.all_train_pairs)

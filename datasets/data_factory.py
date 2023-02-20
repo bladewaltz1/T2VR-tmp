@@ -62,6 +62,7 @@ def collate_fn(batch):
             new_batch.append({
                 'video_id': video_id, 
                 'video': item['video'], 
-                'text': item['text']
+                'text': item['text'],
+                'mask': item['mask']
             })
     return default_collate(new_batch)

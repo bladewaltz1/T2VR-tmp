@@ -36,6 +36,8 @@ class Config(ABC):
         self.num_captioner_layers = args.num_captioner_layers
         self.frequent_word_weight = args.frequent_word_weight
         self.caption_loss_mult = args.caption_loss_mult
+        self.mask_ratio_freq = args.mask_ratio_freq
+        self.mask_ratio = args.mask_ratio
 
         self.clip_lr = args.clip_lr
         self.noclip_lr = args.noclip_lr
