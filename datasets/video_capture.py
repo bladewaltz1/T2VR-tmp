@@ -48,7 +48,7 @@ class VideoCapture:
             cap.set(cv2.CAP_PROP_POS_FRAMES, index)
             ret, frame = cap.read()
             if not ret:
-                n_tries = 5
+                n_tries = 10
                 for _ in range(n_tries):
                     ret, frame = cap.read()
                     if ret:
@@ -61,6 +61,7 @@ class VideoCapture:
                 frame = frame.permute(2, 0, 1)
                 frames.append(frame)
             else:
+                print(video_path)
                 raise ValueError
 
         while len(frames) < num_frames:
