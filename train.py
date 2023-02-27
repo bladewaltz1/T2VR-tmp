@@ -9,7 +9,6 @@ from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 from config.all_config import AllConfig
 from datasets.data_factory import DataFactory
 from model.model_factory import ModelFactory
-from modules.metrics import t2v_metrics, v2t_metrics
 from modules.loss import LossFactory
 from trainer.trainer import Trainer
 
@@ -17,7 +16,7 @@ from trainer.trainer import Trainer
 def main():
     config = AllConfig()
 
-    assert config.num_frames == config.num_prompts
+    assert config.num_frames % config.num_prompts == 0
     assert config.num_test_frames % config.num_prompts == 0
 
     os.environ['TOKENIZERS_PARALLELISM'] = "false"
@@ -38,13 +37,6 @@ def main():
     valid_data_loader  = DataFactory.get_data_loader(config, split_type='test')
     model = ModelFactory.get_model(config)
 
-    if config.metric == 't2v':
-        metrics = t2v_metrics
-    elif config.metric == 'v2t':
-        metrics = v2t_metrics
-    else:
-        raise NotImplemented
-
     optimizer_grouped_params = [
         {'params': model.clip_params, 'lr': config.clip_lr},
         {'params': model.noclip_params, 'lr': config.noclip_lr}
@@ -58,7 +50,7 @@ def main():
 
     loss = LossFactory.get_loss(config)
 
-    trainer = Trainer(model, loss, metrics, optimizer,
+    trainer = Trainer(model, loss, optimizer,
                       config=config,
                       train_data_loader=train_data_loader,
                       valid_data_loader=valid_data_loader,

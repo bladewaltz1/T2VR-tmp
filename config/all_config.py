@@ -35,7 +35,6 @@ class AllConfig(Config):
         parser.add_argument('--evals_per_epoch', type=int, default=10, help="Number of times to evaluate per epoch")
         parser.add_argument('--load_epoch', type=int, help="Epoch to load from exp_name, or -1 to load model_best.pth")
         parser.add_argument('--eval_window_size', type=int, default=5, help="Size of window to average metrics")
-        parser.add_argument('--metric', type=str, default='t2v', help="'t2v'/'v2t'")
 
         # model parameters
         parser.add_argument('--arch', type=str, default='clip_transformer')

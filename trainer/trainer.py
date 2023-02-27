@@ -5,7 +5,9 @@ import torch
 from tqdm import tqdm
 
 from config.base_config import Config
-from modules.metrics import sim_matrix_training, sim_matrix_inference, generate_embeds_per_video_id
+from modules.metrics import (sim_matrix_training, sim_matrix_inference, 
+                             generate_embeds_per_video_id, 
+                             t2v_metrics, v2t_metrics)
 from modules.tokenizer import clip_tokenizer
 from trainer.base_trainer import BaseTrainer
 
@@ -17,10 +19,10 @@ class Trainer(BaseTrainer):
         Inherited from BaseTrainer.
     """
 
-    def __init__(self, model, loss, metrics, optimizer, config: Config, train_data_loader, 
+    def __init__(self, model, loss, optimizer, config: Config, train_data_loader, 
                  valid_data_loader, lr_scheduler=None, writer=None, use_ema=False):
 
-        super().__init__(model, loss, metrics, optimizer, config, writer, use_ema)
+        super().__init__(model, loss, optimizer, config, writer, use_ema)
         self.train_data_loader = train_data_loader
         self.valid_data_loader = valid_data_loader
         self.lr_scheduler = lr_scheduler
@@ -98,13 +100,14 @@ class Trainer(BaseTrainer):
                 else:
                     model = self.model
                 val_res = self._valid_epoch_step(model, epoch, batch_idx, num_steps-1)
+                self.model.train()
 
-                if val_res['R1-window'] > self.best_window:
-                    self.best_window = val_res['R1-window']
+                if val_res['R1-t2v-window'] > self.best_window:
+                    self.best_window = val_res['R1-t2v-window']
                     self._save_checkpoint(epoch, save_best=True)
 
-                if val_res['R1'] > self.best:
-                    self.best = val_res['R1']
+                if val_res['R1-t2v'] > self.best:
+                    self.best = val_res['R1-t2v']
 
                 print(" Current Best Window Average R@1 is {}".format(self.best_window))
                 print(" Current Best R@1 is {}\n\n".format(self.best))
@@ -175,8 +178,8 @@ class Trainer(BaseTrainer):
 
             total_val_loss = total_val_loss / len(self.valid_data_loader)
 
-            metrics = self.metrics
-            res = metrics(sims)
+            res = t2v_metrics(sims)
+            res.update(v2t_metrics(sims))
 
             # Compute window metrics
             for m in res:
@@ -187,11 +190,19 @@ class Trainer(BaseTrainer):
                 res[m + "-window"] = np.mean(self.window_metric[m])
 
             print(f"-----Val Epoch: {epoch}, dl: {step}/{num_steps}-----\n",
-                  f"R@1: {res['R1']} (window: {res['R1-window']})\n", 
-                  f"R@5: {res['R5']} (window: {res['R5-window']})\n", 
-                  f"R@10: {res['R10']} (window: {res['R10-window']})\n",
-                  f"MedR: {res['MedR']} (window: {res['MedR-window']})\n",
-                  f"MeanR: {res['MeanR']} (window: {res['MeanR-window']})\n",
+                  "-------------------- t2v ------------------------ \n",
+                  f"R@1: {res['R1-t2v']} (window: {res['R1-t2v-window']})\n", 
+                  f"R@5: {res['R5-t2v']} (window: {res['R5-t2v-window']})\n", 
+                  f"R@10: {res['R10-t2v']} (window: {res['R10-t2v-window']})\n",
+                  f"MedR: {res['MedR-t2v']} (window: {res['MedR-t2v-window']})\n",
+                  f"MeanR: {res['MeanR-t2v']} (window: {res['MeanR-t2v-window']})\n",
+                  "-------------------- v2t ------------------------ \n",
+                  f"R@1: {res['R1-v2t']} (window: {res['R1-v2t-window']})\n", 
+                  f"R@5: {res['R5-v2t']} (window: {res['R5-v2t-window']})\n", 
+                  f"R@10: {res['R10-v2t']} (window: {res['R10-v2t-window']})\n",
+                  f"MedR: {res['MedR-v2t']} (window: {res['MedR-v2t-window']})\n",
+                  f"MeanR: {res['MeanR-v2t']} (window: {res['MeanR-v2t-window']})\n",
+                  "------------------------------------------------- \n",
                   f"Loss: {total_val_loss}")
 
             res['loss_val'] =  total_val_loss

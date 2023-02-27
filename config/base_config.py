@@ -26,7 +26,6 @@ class Config(ABC):
         self.evals_per_epoch = args.evals_per_epoch
         self.load_epoch = args.load_epoch
         self.eval_window_size = args.eval_window_size
-        self.metric = args.metric
 
         self.arch = args.arch
         self.clip_arch = args.clip_arch

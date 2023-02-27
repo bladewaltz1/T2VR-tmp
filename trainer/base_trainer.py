@@ -11,7 +11,7 @@ class BaseTrainer:
     """
     Base class for all trainers
     """
-    def __init__(self, model, loss, metrics, optimizer, config: Config, 
+    def __init__(self, model, loss, optimizer, config: Config, 
                  writer=None, use_ema=False):
         self.config = config
         # setup GPU device if available, move model into configured device
@@ -26,7 +26,6 @@ class BaseTrainer:
             self.model_ema = None
 
         self.loss = {k: v.to(self.device) for k, v in loss.items()}
-        self.metrics = metrics
         self.optimizer = optimizer
         self.start_epoch = 1
         self.global_step = 0

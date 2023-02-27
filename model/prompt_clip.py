@@ -1258,6 +1258,7 @@ class CLIPModel(CLIPPreTrainedModel):
 
 from config.base_config import Config
 from modules.baseline_pooling import BaselinePooling
+from modules.transformer import Transformer
 
 
 class PromptCLIP(nn.Module):
@@ -1296,13 +1297,17 @@ class PromptCLIP(nn.Module):
             )
             nn.init.zeros_(self.caption_head.bias.data)
 
-        self.pool_frames = BaselinePooling(config.pooling_type, config)
-        self.pool_frames_test = BaselinePooling(config.pooling_type_test, config)
+        if config.pooling_type == 'transformer':
+            self.pool_frames = Transformer(config)
+            self.pool_frames_test = self.pool_frames
+        else:
+            self.pool_frames = BaselinePooling(config.pooling_type, config)
+            self.pool_frames_test = BaselinePooling(config.pooling_type_test, config)
 
         self.clip_params = []
         self.noclip_params = []
         for name, param in self.named_parameters():
-            if 'prompt' in name or 'caption' in name:
+            if 'prompt' in name or 'caption' in name or 'pool' in name:
                 self.noclip_params.append(param)
             else:
                 self.clip_params.append(param)

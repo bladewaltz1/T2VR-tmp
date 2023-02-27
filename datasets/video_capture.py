@@ -7,10 +7,7 @@ import torch
 class VideoCapture:
 
     @staticmethod
-    def load_frames_from_video(video_path,
-                               num_frames,
-                               num_test_frames=None,
-                               sample='rand'):
+    def load_frames_from_video(video_path, num_frames, num_prompts, sample='rand'):
         """
             video_path: str/os.path
             num_frames: int - number of frames to sample
@@ -24,12 +21,12 @@ class VideoCapture:
         vlen = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # get indexes of sampled frames
-        acc_samples = min(num_frames, vlen)
+        acc_samples = min(num_prompts, vlen)
         intervals = np.linspace(start=0, stop=vlen, num=acc_samples + 1).astype(int)
         ranges = []
         num_chunks = 1
-        if num_test_frames is not None:
-            num_chunks = num_test_frames // num_frames
+        if num_prompts > 0:
+            num_chunks = num_frames // num_prompts
 
         # ranges constructs equal spaced intervals (start, end)
         # we can either choose a random image in the interval with 'rand'

@@ -122,7 +122,7 @@ def t2v_metrics(sims):
     mask = ~ torch.logical_or(torch.isinf(valid_check), torch.isnan(valid_check))
     valid_ranks = ranks[mask]
 
-    return compute_metrics(valid_ranks.numpy())
+    return compute_metrics(valid_ranks.numpy(), 't2v')
 
 
 def v2t_metrics(sims):
@@ -137,18 +137,18 @@ def v2t_metrics(sims):
 
     ranks = torch.diag(sims_sort_2).numpy() # diagonal
 
-    return compute_metrics(ranks)
+    return compute_metrics(ranks, 'v2t')
 
 
-def compute_metrics(lst):
+def compute_metrics(lst, prefix='t2v'):
     metrics = {}
-    metrics["R1"] = 100 * float(np.sum(lst == 0)) / len(lst)
-    metrics["R5"] = 100 * float(np.sum(lst < 5)) / len(lst)
-    metrics["R10"] = 100 * float(np.sum(lst < 10)) / len(lst)
-    metrics["R50"] = 100 * float(np.sum(lst < 50)) / len(lst)
-    metrics["R100"] = 100 * float(np.sum(lst < 100)) / len(lst)
-    metrics["MedR"] = np.median(lst) + 1
-    metrics["MeanR"] = np.mean(lst) + 1
+    metrics[f"R1-{prefix}"] = 100 * float(np.sum(lst == 0)) / len(lst)
+    metrics[f"R5-{prefix}"] = 100 * float(np.sum(lst < 5)) / len(lst)
+    metrics[f"R10-{prefix}"] = 100 * float(np.sum(lst < 10)) / len(lst)
+    metrics[f"R50-{prefix}"] = 100 * float(np.sum(lst < 50)) / len(lst)
+    metrics[f"R100-{prefix}"] = 100 * float(np.sum(lst < 100)) / len(lst)
+    metrics[f"MedR-{prefix}"] = np.median(lst) + 1
+    metrics[f"MeanR-{prefix}"] = np.mean(lst) + 1
     return metrics
 
 

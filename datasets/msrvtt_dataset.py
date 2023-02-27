@@ -34,19 +34,17 @@ class MSRVTTDataset(Dataset):
             self._compute_vid2caption()
             self._construct_all_train_pairs()
             self.num_frames = self.config.num_frames
-            self.num_test_frames = None
             self.video_sample_type = self.config.video_sample_type
         else:
             self.test_df = pd.read_csv(test_csv)
-            self.num_frames = self.config.num_frames
-            self.num_test_frames = self.config.num_test_frames
+            self.num_frames = self.config.num_test_frames
             self.video_sample_type = self.config.video_sample_type_test
 
     def __getitem__(self, index):
         video_path, caption, video_id = self._get_vidpath_and_caption_by_index(index)
         imgs, idxs = VideoCapture.load_frames_from_video(video_path, 
                                                          self.num_frames, 
-                                                         self.num_test_frames,
+                                                         self.config.num_prompts,
                                                          self.video_sample_type)
 
         # process images of video

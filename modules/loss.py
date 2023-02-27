@@ -35,8 +35,8 @@ class CaptionLoss(nn.Module):
     def __init__(self, config):
         super().__init__()
         weight = torch.ones(clip_tokenizer.vocab_size)
-        frequent_words = "in on of to this that which image picture I we can see a an the \
-            here there is are . , <|endoftext|>"
+        frequent_words = "in on of to about this that a an the and there here is are . , \
+                          <|endoftext|> <|startoftext|>"
         frequent_ids = clip_tokenizer.convert_tokens_to_ids(
             clip_tokenizer.tokenize(frequent_words)
         )

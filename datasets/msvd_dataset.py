@@ -28,9 +28,13 @@ class MSVDDataset(Dataset):
         if split_type == 'train':
             self.train_vids = read_lines(train_file) 
             self._construct_all_train_pairs()
+            self.num_frames = self.config.num_frames
+            self.video_sample_type = self.config.video_sample_type
         else:
             self.test_vids = read_lines(test_file)
             self._construct_all_test_pairs()
+            self.num_frames = self.config.num_test_frames
+            self.video_sample_type = self.config.video_sample_type_test
 
     def __getitem__(self, index):
         if self.split_type == 'train':
@@ -39,8 +43,9 @@ class MSVDDataset(Dataset):
             video_path, caption, video_id = self._get_vidpath_and_caption_by_index_test(index)
 
         imgs, idxs = VideoCapture.load_frames_from_video(video_path, 
-                                                         self.config.num_frames, 
-                                                         self.config.video_sample_type)
+                                                         self.num_frames, 
+                                                         self.config.num_prompts,
+                                                         self.video_sample_type)
 
         # process images of video
         if self.img_transforms is not None:

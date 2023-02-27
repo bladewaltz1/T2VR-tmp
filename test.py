@@ -8,7 +8,6 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from config.all_config import AllConfig
 from datasets.data_factory import DataFactory
 from model.model_factory import ModelFactory
-from modules.metrics import t2v_metrics, v2t_metrics
 from modules.loss import LossFactory
 from trainer.trainer import Trainer
 
@@ -32,16 +31,9 @@ def main():
     test_data_loader  = DataFactory.get_data_loader(config, split_type='test')
     model = ModelFactory.get_model(config)
 
-    if config.metric == 't2v':
-        metrics = t2v_metrics
-    elif config.metric == 'v2t':
-        metrics = v2t_metrics
-    else:
-        raise NotImplemented
-
     loss = LossFactory.get_loss(config)
 
-    trainer = Trainer(model, loss, metrics, None,
+    trainer = Trainer(model, loss, None,
                       config=config,
                       train_data_loader=None,
                       valid_data_loader=test_data_loader,
