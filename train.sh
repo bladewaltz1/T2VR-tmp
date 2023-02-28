@@ -1,8 +1,8 @@
-batch_size=64
-num_frames=16
-num_prompts=8
-num_test_frames=64
-test_batch_size=32
+batch_size=64      # 128    128
+num_frames=12      # 32     16
+num_prompts=6      # 8      8
+num_test_frames=36 # 64     64
+test_batch_size=64 # 64     32
 num_epochs=20
 noclip_lr=3e-5
 clip_lr=1e-6
@@ -10,7 +10,8 @@ video_dir=data/ANet/ANet_Videos_12fps/
 
 exp_name=anet_bs${batch_size}_nf${num_frames}_ep${num_epochs}_lr${noclip_lr}
 
-python train.py --exp_name=$exp_name \
+python train.py \
+    --exp_name=$exp_name \
     --videos_dir=$video_dir \
     --batch_size=$batch_size \
     --test_batch_size=$test_batch_size \
