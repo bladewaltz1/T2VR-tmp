@@ -39,6 +39,7 @@ class Config(ABC):
         self.clip_lr = args.clip_lr
         self.noclip_lr = args.noclip_lr
         self.batch_size = args.batch_size
+        self.test_batch_size = args.test_batch_size
         self.num_epochs = args.num_epochs
         self.weight_decay = args.weight_decay
         self.warmup_proportion = args.warmup_proportion

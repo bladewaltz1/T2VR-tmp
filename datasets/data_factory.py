@@ -25,7 +25,7 @@ class DataFactory:
                            collate_fn=collate_fn)
             else:
                 dataset = MSRVTTDataset(config, split_type, test_img_tfms)
-                return DataLoader(dataset, batch_size=config.batch_size,
+                return DataLoader(dataset, batch_size=config.test_batch_size,
                            shuffle=False, num_workers=config.num_workers)
 
         elif config.dataset_name == "MSVD":
@@ -36,7 +36,7 @@ class DataFactory:
                             collate_fn=collate_fn)
             else:
                 dataset = MSVDDataset(config, split_type, test_img_tfms)
-                return DataLoader(dataset, batch_size=config.batch_size,
+                return DataLoader(dataset, batch_size=config.test_batch_size,
                             shuffle=False, num_workers=config.num_workers)
 
         elif config.dataset_name == 'LSMDC':
@@ -47,7 +47,7 @@ class DataFactory:
                             collate_fn=collate_fn)
             else:
                 dataset = LSMDCDataset(config, split_type, test_img_tfms)
-                return DataLoader(dataset, batch_size=config.batch_size,
+                return DataLoader(dataset, batch_size=config.test_batch_size,
                             shuffle=False, num_workers=config.num_workers)
 
         elif config.dataset_name == 'ActivityNet':
@@ -58,7 +58,7 @@ class DataFactory:
                             collate_fn=collate_fn)
             else:
                 dataset = ANetDataset(config, split_type, test_img_tfms)
-                return DataLoader(dataset, batch_size=config.batch_size,
+                return DataLoader(dataset, batch_size=config.test_batch_size,
                             shuffle=False, num_workers=config.num_workers)
 
         else:

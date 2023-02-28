@@ -58,7 +58,7 @@ class ANetDataset(Dataset):
                                                          self.num_frames, 
                                                          self.config.num_prompts,
                                                          self.config.video_sample_type)
-       
+
         # process images of video
         if self.img_transforms is not None:
             imgs = self.img_transforms(imgs)
