@@ -27,8 +27,11 @@ This repository contains the official implementation of our **CVPR 2022** paper.
 ## Dependencies
 Our model was developed and evaluated using the following package dependencies:
 - PyTorch 1.8.1
-- Transformers 4.6.1
+- transformers
 - OpenCV 4.5.3
+- timm
+- pandas
+- tensorboard
 
 <a name="datasets"/>
 
