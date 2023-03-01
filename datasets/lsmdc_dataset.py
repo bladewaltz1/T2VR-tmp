@@ -21,16 +21,21 @@ class LSMDCDataset(Dataset):
         if split_type == 'train':
             train_file = 'data/LSMDC/LSMDC16_annos_training.csv'
             self._compute_clip2caption(train_file)
+            self.num_frames = self.config.num_frames
+            self.video_sample_type = self.config.video_sample_type
 
         else:
             test_file = 'data/LSMDC/LSMDC16_challenge_1000_publictect.csv'
             self._compute_clip2caption(test_file)
+            self.num_frames = self.config.num_test_frames
+            self.video_sample_type = self.config.video_sample_type_test
   
     def __getitem__(self, index):
         video_path, caption, video_id = self._get_vidpath_and_caption_by_index(index)
         imgs, idxs = VideoCapture.load_frames_from_video(video_path, 
-                                                         self.config.num_frames, 
-                                                         self.config.video_sample_type)
+                                                         self.num_frames, 
+                                                         self.config.num_prompts,
+                                                         self.video_sample_type)
 
         # process images of video
         if self.img_transforms is not None:
@@ -49,8 +54,8 @@ class LSMDCDataset(Dataset):
         # returns video path and caption as string
         clip_id = list(self.clip2caption.keys())[index]
         caption = self.clip2caption[clip_id]
-        clip_prefix = clip_id.split('.')[0][:-3]
-        video_path = os.path.join(self.videos_dir, clip_prefix, clip_id + '.avi')
+        # clip_prefix = clip_id.split('.')[0][:-3]
+        video_path = os.path.join(self.videos_dir, clip_id + '.avi')
 
         return video_path, caption, clip_id
 
